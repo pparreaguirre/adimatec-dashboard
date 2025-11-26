@@ -498,10 +498,26 @@ if not ots_desviacion_negativa.empty:
     with col3:
         st.metric("Horas representadas", f"{ots_80_percent['diferencia_horas'].sum():.1f}h")
     
-    # Tabla de OTs críticas (las que generan el 80% del problema)
+    # CORREGIDO: Tabla de OTs críticas con verificación de columnas
     st.subheader("🎯 OTs Críticas (Principio 80/20)")
-    ots_criticas = ots_80_percent[['ot', 'cliente', 'horas_estimadas_ot', 'horas_reales_ot', 'diferencia_horas']].copy()
-    st.dataframe(ots_criticas, use_container_width=True, height=250)
+    
+    # Obtener las OTs críticas del DataFrame original
+    ots_criticas_ids = ots_80_percent['ot'].tolist()
+    ots_criticas = ots_desviacion_negativa[ots_desviacion_negativa['ot'].isin(ots_criticas_ids)].copy()
+    
+    # Verificar qué columnas están disponibles
+    columnas_posibles = ['ot', 'cliente', 'descripcion', 'horas_estimadas_ot', 'horas_reales_ot', 'diferencia_horas', 'estatus']
+    columnas_disponibles = [col for col in columnas_posibles if col in ots_criticas.columns]
+    
+    if len(columnas_disponibles) > 0:
+        # Ordenar por diferencia_horas descendente
+        if 'diferencia_horas' in columnas_disponibles:
+            ots_criticas = ots_criticas.sort_values('diferencia_horas', ascending=False)
+        
+        st.dataframe(ots_criticas[columnas_disponibles], use_container_width=True, height=250)
+        st.caption(f"Se muestran {len(ots_criticas)} OTs críticas que representan el 80% de las desviaciones negativas")
+    else:
+        st.warning("No se encontraron columnas disponibles para mostrar las OTs críticas")
     
     st.info("""
     **Interpretación del Análisis de Pareto:**
@@ -605,7 +621,8 @@ def generar_powerpoint_completo():
             p = tf.add_paragraph()
             p.text = f"• OTs con Desviaciones Negativas: {len(ots_desviacion_negativa)}"
             p = tf.add_paragraph()
-            p.text = f"• OTs Críticas (80/20): {len(ots_80_percent) if 'ots_80_percent' in locals() else 'N/A'}"
+ots_criticas_count = len(ots_80_percent) if not ots_desviacion_negativa.empty and 'ots_80_percent' in locals() else 0
+p.text = f"• OTs Críticas (80/20): {ots_criticas_count}"
             
             # Slides adicionales para los nuevos análisis...
             # (El resto del código de PowerPoint permanece igual)
