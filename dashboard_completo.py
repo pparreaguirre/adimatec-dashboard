@@ -8,20 +8,7 @@ import numpy as np
 import requests
 from PIL import Image
 import io
-import tempfile
-import zipfile
 import os
-
-# =============================================
-# INICIALIZACIÓN DE VARIABLES GLOBALES PARA GRÁFICOS
-# =============================================
-fig_ots_vencidas = None
-fig_facturacion = None
-fig_reprocesos = None
-fig_desviaciones = None
-fig_pareto = None
-fig_clientes = None
-fig_estatus = None
 
 # =============================================
 # CONFIGURACIÓN STREAMLIT
@@ -550,16 +537,16 @@ col1, col2 = st.columns(2)
 
 with col1:
     if total_ots > 0:
-    fig_facturacion = px.pie(
-        values=[ots_facturadas, total_ots - ots_facturadas],
-        names=['Facturado', 'No Facturado'],
-        title="Total de OTs vs Facturado",
-        hole=0.4,
-        color=['Facturado', 'No Facturado'],
-        color_discrete_map={'Facturado': '#00CC96', 'No Facturado': '#EF553B'}
-    )
-    fig_facturacion.update_traces(textinfo='percent+label')
-    st.plotly_chart(fig_facturacion, use_container_width=True)
+        fig_facturacion = px.pie(
+            values=[ots_facturadas, total_ots - ots_facturadas],
+            names=['Facturado', 'No Facturado'],
+            title="Total de OTs vs Facturado",
+            hole=0.4,
+            color=['Facturado', 'No Facturado'],
+            color_discrete_map={'Facturado': '#00CC96', 'No Facturado': '#EF553B'}
+        )
+        fig_facturacion.update_traces(textinfo='percent+label')
+        st.plotly_chart(fig_facturacion, use_container_width=True)
     else: 
         st.info("No hay OTs para mostrar el gráfico de facturación")
 with col2:
@@ -572,280 +559,82 @@ with col2:
         st.info("No hay OTs para mostrar el resumen de facturación")
 
 # =============================================
-# SECCIÓN DE EXPORTACIÓN SIMPLIFICADA (SOLO EXCEL + GRÁFICOS)
+# SECCIÓN DE EXPORTACIÓN SIMPLIFICADA (SOLO EXCEL)
 # =============================================
 
 st.markdown("---")
 st.header("📊 Generar Reportes")
 
-col1, col2 = st.columns(2)
-
-with col1:
-    st.subheader("📈 Exportar Datos a Excel")
-    st.info("Descarga los datos completos en formato Excel para análisis detallado")
-    
-    def exportar_a_excel():
-        """Exportar datos completos a Excel"""
-        try:
-            with st.spinner("📊 Generando archivo Excel..."):
-                # Crear un escritor de Excel
-                with pd.ExcelWriter('reporte_adimatec.xlsx', engine='openpyxl') as writer:
-                    # Hoja 1: OT Master
-                    ot_master_filtrado.to_excel(writer, sheet_name='OT_Master', index=False)
-                    
-                    # Hoja 2: Procesos
-                    if not procesos_filtrados.empty:
-                        procesos_filtrados.to_excel(writer, sheet_name='Procesos', index=False)
-                    
-                    # Hoja 3: Resumen Ejecutivo
-                    resumen_data = {
-                        'Métrica': [
-                            'Total OTs', 
-                            'OTs Facturadas', 
-                            'OTs en Proceso', 
-                            'OTs Vencidas', 
-                            'OTs por Vencer',
-                            '% Facturación',
-                            '% Reprocesos',
-                            'Horas Programadas Totales',
-                            'Desviaciones Positivas',
-                            'Desviaciones Negativas'
-                        ],
-                        'Valor': [
-                            total_ots,
-                            ots_facturadas,
-                            ots_en_proceso,
-                            ots_vencidas,
-                            ots_por_vencer,
-                            f"{porcentaje_facturado:.1f}%",
-                            f"{porcentaje_reprocesos:.1f}%",
-                            f"{total_horas_programadas:.1f}h",
-                            f"{horas_desviacion_positiva:.1f}h",
-                            f"{horas_desviacion_negativa:.1f}h"
-                        ]
-                    }
-                    pd.DataFrame(resumen_data).to_excel(writer, sheet_name='Resumen', index=False)
-                    
-                    # Hoja 4: OTs Críticas
-                    if not ots_desviacion_negativa.empty:
-                        columnas_criticas = ['ot', 'cliente', 'horas_estimadas_ot', 'horas_reales_ot', 'diferencia_horas']
-                        columnas_disponibles = [col for col in columnas_criticas if col in ots_desviacion_negativa.columns]
-                        if columnas_disponibles:
-                            ots_desviacion_negativa[columnas_disponibles].to_excel(writer, sheet_name='OTs_Criticas', index=False)
-                
-                # Ofrecer descarga
-                with open('reporte_adimatec.xlsx', 'rb') as f:
-                    st.download_button(
-                        label="📈 Descargar Excel Completo",
-                        data=f.read(),
-                        file_name=f"Reporte_Adimatec_{datetime.now().strftime('%Y%m%d')}.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        use_container_width=True
-                    )
-                
-                # Limpiar archivo temporal
-                if os.path.exists('reporte_adimatec.xlsx'):
-                    os.remove('reporte_adimatec.xlsx')
-                    
-                st.success("✅ Archivo Excel generado exitosamente!")
-                
-        except Exception as e:
-            st.error(f"Error al generar Excel: {str(e)}")
-    
-    if st.button("📊 Generar Reporte Excel", use_container_width=True):
-        exportar_a_excel()
-
-with col2:
-    st.subheader("📸 Exportar Gráficos")
-    st.info("Descarga todos los gráficos como imágenes PNG en alta calidad")
-    
-    def exportar_graficos_imagenes():
-    """Exportar gráficos individuales como imágenes PNG"""
+def exportar_a_excel():
+    """Exportar datos completos a Excel"""
     try:
-        with st.spinner("📸 Exportando gráficos como imágenes..."):
-            temp_files = []
-            
-            # Lista de gráficos a exportar - creamos una lista local de figuras
-            graficos = {}
-            
-            # Verificar cada gráfico individualmente
-            try:
-                # Gráfico 1: OTs Vencidas y Por Vencer
-                if not estado_entrega_counts_filtrado.empty and 'fig_ots_vencidas' in locals():
-                    graficos["01_OTs_Vencidas_Por_Vencer.png"] = fig_ots_vencidas
-                elif not estado_entrega_counts_filtrado.empty:
-                    # Recrear el gráfico si es necesario
-                    fig_temp = px.bar(
-                        x=estado_entrega_counts_filtrado.index,
-                        y=estado_entrega_counts_filtrado.values,
-                        title="OTs Vencidas y Por Vencer",
-                        labels={'x': 'Estado de Entrega', 'y': 'Cantidad de OTs'},
-                        color=estado_entrega_counts_filtrado.index,
-                        color_discrete_map={'Vencida': '#FF4B4B', 'Por vencer': '#FFA500'},
-                        text=estado_entrega_counts_filtrado.values
-                    )
-                    fig_temp.update_traces(texttemplate='%{text}', textposition='outside')
-                    fig_temp.update_layout(showlegend=False, yaxis_title="Cantidad de OTs", xaxis_title="", height=400)
-                    graficos["01_OTs_Vencidas_Por_Vencer.png"] = fig_temp
-            except Exception as e:
-                st.warning(f"No se pudo preparar gráfico 1: {e}")
-            
-            try:
-                # Gráfico 2: Facturación
-                if total_ots > 0:
-                    fig_temp = px.pie(
-                        values=[ots_facturadas, total_ots - ots_facturadas],
-                        names=['Facturado', 'No Facturado'],
-                        title="Total de OTs vs Facturado",
-                        hole=0.4,
-                        color=['Facturado', 'No Facturado'],
-                        color_discrete_map={'Facturado': '#00CC96', 'No Facturado': '#EF553B'}
-                    )
-                    fig_temp.update_traces(textinfo='percent+label')
-                    graficos["02_Facturacion.png"] = fig_temp
-            except Exception as e:
-                st.warning(f"No se pudo preparar gráfico 2: {e}")
-            
-            try:
-                # Gráfico 3: Desviaciones de Horas
-                if total_horas_programadas > 0:
-                    categorias = ['Horas Programadas', 'Desviaciones Positivas', 'Desviaciones Negativas']
-                    valores = [total_horas_programadas, horas_desviacion_positiva, horas_desviacion_negativa]
-                    colores = ['#1f77b4', '#2ca02c', '#d62728']
-                    
-                    fig_temp = go.Figure()
-                    fig_temp.add_trace(go.Bar(x=categorias, y=valores, marker_color=colores, text=[f'{val:.1f}h' for val in valores], textposition='outside'))
-                    fig_temp.update_layout(title="Comparación de Horas Programadas vs Desviaciones", yaxis_title="Horas", xaxis_title="", showlegend=False, height=500)
-                    graficos["03_Desviaciones_Horas.png"] = fig_temp
-            except Exception as e:
-                st.warning(f"No se pudo preparar gráfico 3: {e}")
-            
-            try:
-                # Gráfico 4: Reprocesos
-                if total_ots > 0 and total_reprocesos > 0:
-                    fig_temp = px.pie(
-                        values=[total_reprocesos, total_ots - total_reprocesos],
-                        names=['Reprocesos', 'OTs Normales'],
-                        title="Distribución: OTs Normales vs Reprocesos",
-                        hole=0.4,
-                        color=['Reprocesos', 'OTs Normales'],
-                        color_discrete_map={'Reprocesos': '#FFA15A', 'OTs Normales': '#636EFA'}
-                    )
-                    fig_temp.update_traces(textinfo='percent+label')
-                    graficos["04_Reprocesos.png"] = fig_temp
-            except Exception as e:
-                st.warning(f"No se pudo preparar gráfico 4: {e}")
-            
-            try:
-                # Gráfico 5: Pareto (si existe)
-                if not ots_desviacion_negativa.empty and 'fig_pareto' in locals():
-                    graficos["05_Pareto_Desviaciones.png"] = fig_pareto
-                elif not ots_desviacion_negativa.empty:
-                    # Recrear gráfico Pareto si es necesario
-                    pareto_data = ots_desviacion_negativa[['ot', 'diferencia_horas']].copy()
-                    pareto_data = pareto_data.sort_values('diferencia_horas', ascending=False)
-                    pareto_data['porcentaje_acumulado'] = (pareto_data['diferencia_horas'].cumsum() / pareto_data['diferencia_horas'].sum()) * 100
-                    
-                    fig_temp = go.Figure()
-                    fig_temp.add_trace(go.Bar(
-                        x=pareto_data['ot'],
-                        y=pareto_data['diferencia_horas'],
-                        name='Horas de Desviación',
-                        marker_color='#FF6B6B',
-                        text=pareto_data['diferencia_horas'].round(1),
-                        textposition='outside'
-                    ))
-                    fig_temp.add_trace(go.Scatter(
-                        x=pareto_data['ot'],
-                        y=pareto_data['porcentaje_acumulado'],
-                        name='Porcentaje Acumulado',
-                        line=dict(color='#4ECDC4', width=3),
-                        yaxis='y2',
-                        mode='lines+markers'
-                    ))
-                    fig_temp.update_layout(
-                        title="Principio de Pareto - Desviaciones Negativas por OT",
-                        xaxis_title="OT",
-                        yaxis_title="Horas de Desviación Negativa",
-                        yaxis2=dict(
-                            title="Porcentaje Acumulado (%)",
-                            overlaying='y',
-                            side='right',
-                            range=[0, 100]
-                        ),
-                        showlegend=True,
-                        height=500,
-                        xaxis=dict(tickangle=45)
-                    )
-                    graficos["05_Pareto_Desviaciones.png"] = fig_temp
-            except Exception as e:
-                st.warning(f"No se pudo preparar gráfico 5: {e}")
-            
-            try:
-                # Gráfico 6: OTs por Cliente
-                if not ot_master_filtrado.empty and 'cliente' in ot_master_filtrado.columns:
-                    ots_por_cliente = ot_master_filtrado['cliente'].value_counts()
-                    if not ots_por_cliente.empty:
-                        fig_temp = px.pie(values=ots_por_cliente.values, names=ots_por_cliente.index, title="Distribución de OTs por Cliente")
-                        graficos["06_OTs_por_Cliente.png"] = fig_temp
-            except Exception as e:
-                st.warning(f"No se pudo preparar gráfico 6: {e}")
-            
-            try:
-                # Gráfico 7: OTs por Estatus
-                if not ot_master_filtrado.empty and 'estatus' in ot_master_filtrado.columns:
-                    ots_por_estatus = ot_master_filtrado['estatus'].value_counts()
-                    if not ots_por_estatus.empty:
-                        fig_temp = px.bar(x=ots_por_estatus.index, y=ots_por_estatus.values, title="OTs por Estado", labels={'x': 'Estatus', 'y': 'Cantidad'}, color=ots_por_estatus.index)
-                        graficos["07_OTs_por_Estatus.png"] = fig_temp
-            except Exception as e:
-                st.warning(f"No se pudo preparar gráfico 7: {e}")
-            
-            # VERIFICAR SI HAY GRÁFICOS DISPONIBLES
-            if not graficos:
-                st.warning("⚠️ No hay gráficos disponibles para exportar. Asegúrate de que los datos se hayan cargado correctamente y que haya gráficos para mostrar.")
-                return
-            
-            # Exportar cada gráfico
-            for filename, figura in graficos.items():
-                try:
-                    temp_path = f"temp_{filename}"
-                    figura.write_image(temp_path, width=1200, height=800, scale=2)
-                    temp_files.append(temp_path)
-                except Exception as e:
-                    st.warning(f"No se pudo exportar {filename}: {str(e)}")
-            
-            if temp_files:
-                # Crear ZIP
-                zip_filename = f"Graficos_Adimatec_{datetime.now().strftime('%Y%m%d_%H%M')}.zip"
-                with zipfile.ZipFile(zip_filename, 'w') as zipf:
-                    for file in temp_files:
-                        zipf.write(file, os.path.basename(file))
+        with st.spinner("📊 Generando archivo Excel..."):
+            # Crear un escritor de Excel
+            with pd.ExcelWriter('reporte_adimatec.xlsx', engine='openpyxl') as writer:
+                # Hoja 1: OT Master
+                ot_master_filtrado.to_excel(writer, sheet_name='OT_Master', index=False)
                 
-                # Ofrecer descarga
-                with open(zip_filename, 'rb') as f:
-                    st.download_button(
-                        label="📦 Descargar Todos los Gráficos (ZIP)",
-                        data=f.read(),
-                        file_name=zip_filename,
-                        mime="application/zip",
-                        use_container_width=True
-                    )
+                # Hoja 2: Procesos
+                if not procesos_filtrados.empty:
+                    procesos_filtrados.to_excel(writer, sheet_name='Procesos', index=False)
                 
-                # Limpiar archivos temporales
-                for file in temp_files + [zip_filename]:
-                    if os.path.exists(file):
-                        os.remove(file)
+                # Hoja 3: Resumen Ejecutivo
+                resumen_data = {
+                    'Métrica': [
+                        'Total OTs', 
+                        'OTs Facturadas', 
+                        'OTs en Proceso', 
+                        'OTs Vencidas', 
+                        'OTs por Vencer',
+                        '% Facturación',
+                        '% Reprocesos',
+                        'Horas Programadas Totales',
+                        'Desviaciones Positivas',
+                        'Desviaciones Negativas'
+                    ],
+                    'Valor': [
+                        total_ots,
+                        ots_facturadas,
+                        ots_en_proceso,
+                        ots_vencidas,
+                        ots_por_vencer,
+                        f"{porcentaje_facturado:.1f}%",
+                        f"{porcentaje_reprocesos:.1f}%",
+                        f"{total_horas_programadas:.1f}h",
+                        f"{horas_desviacion_positiva:.1f}h",
+                        f"{horas_desviacion_negativa:.1f}h"
+                    ]
+                }
+                pd.DataFrame(resumen_data).to_excel(writer, sheet_name='Resumen', index=False)
                 
-                st.success(f"✅ {len(temp_files)} gráficos exportados exitosamente!")
-            else:
-                st.warning("⚠️ No se pudieron exportar los gráficos. Verifica que kaleido esté instalado correctamente.")
-                    
+                # Hoja 4: OTs Críticas
+                if not ots_desviacion_negativa.empty:
+                    columnas_criticas = ['ot', 'cliente', 'horas_estimadas_ot', 'horas_reales_ot', 'diferencia_horas']
+                    columnas_disponibles = [col for col in columnas_criticas if col in ots_desviacion_negativa.columns]
+                    if columnas_disponibles:
+                        ots_desviacion_negativa[columnas_disponibles].to_excel(writer, sheet_name='OTs_Criticas', index=False)
+            
+            # Ofrecer descarga
+            with open('reporte_adimatec.xlsx', 'rb') as f:
+                st.download_button(
+                    label="📈 Descargar Excel Completo",
+                    data=f.read(),
+                    file_name=f"Reporte_Adimatec_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True
+                )
+            
+            # Limpiar archivo temporal
+            if os.path.exists('reporte_adimatec.xlsx'):
+                os.remove('reporte_adimatec.xlsx')
+                
+            st.success("✅ Archivo Excel generado exitosamente!")
+            
     except Exception as e:
-        st.error(f"❌ Error al exportar gráficos: {str(e)}")
-    
-    if st.button("🖼️ Exportar Gráficos", use_container_width=True):
-        exportar_graficos_imagenes()
+        st.error(f"Error al generar Excel: {str(e)}")
+
+if st.button("📊 Generar Reporte Excel", use_container_width=True):
+    exportar_a_excel()
 
 # Tablas de datos
 st.markdown("---")
