@@ -9,7 +9,10 @@ import requests
 from PIL import Image
 import io
 
-# Inicializar variables globales para evitar errores
+# =============================================
+# INICIALIZACIÓN DE VARIABLES GLOBALES
+# =============================================
+# Inicializar todas las variables para evitar errores
 ots_en_proceso = 0
 ots_vencidas = 0
 ots_por_vencer = 0
@@ -19,16 +22,16 @@ fig_reprocesos = None
 fig_desviaciones = None
 fig_pareto = None
 
-# Nuevos imports para PowerPoint
+# =============================================
+# MANEJO ROBUSTO DE IMPORTACIONES DE POWERPOINT
+# =============================================
+PPTX_AVAILABLE = False
 try:
     from pptx import Presentation
-    from pptx.util import Inches, Pt
-    from pptx.enum.text import PP_ALIGN
-    from pptx.dml.color import RGBColor
+    from pptx.util import Inches
     PPTX_AVAILABLE = True
-except ImportError:
-    PPTX_AVAILABLE = False
-    st.warning("⚠️ La funcionalidad de PowerPoint no está disponible. Instala python-pptx para habilitarla.")
+except ImportError as e:
+    st.sidebar.warning("⚠️ PowerPoint no disponible: python-pptx no está instalado")
 
 import tempfile
 import zipfile
@@ -570,273 +573,141 @@ with col2:
     if total_ots > 0: st.info(f"Eficiencia de facturación: {porcentaje_facturado:.1f}%")
     else: st.info("No hay OTs para mostrar el resumen de facturación")
 
-# NUEVA SECCIÓN: GENERACIÓN DE POWERPOINT (MEJORADA)
+# NUEVA SECCIÓN: GENERACIÓN DE POWERPOINT (VERSIÓN SEGURA)
 st.markdown("---")
-st.header("📊 Generar Reporte Ejecutivo")
+st.header("📊 Exportar Reportes")
 
 col1, col2 = st.columns(2)
 
 with col1:
     st.subheader("🎯 Presentación PowerPoint")
-    st.info("Genera un reporte ejecutivo completo en formato PowerPoint listo para presentar.")
     
     if not PPTX_AVAILABLE:
         st.error("""
-        **python-pptx no está instalado**
-        
-        Para habilitar esta funcionalidad, agrega a tu `requirements.txt`:
-        ```
-        python-pptx>=0.6.21
+        **PowerPoint no disponible**
+        Agrega a tu `requirements.txt`:
+        ```txt
+        python-pptx==0.6.21
         ```
         """)
     else:
-        if st.button("🚀 Generar Reporte PowerPoint Completo", type="primary", use_container_width=True):
+        st.info("Genera un reporte ejecutivo básico en formato PowerPoint")
+        if st.button("🚀 Generar PowerPoint Básico", type="primary", use_container_width=True):
             generar_powerpoint_completo()
 
 with col2:
     st.subheader("📸 Exportar Gráficos")
-    st.info("Descarga todos los gráficos como imágenes PNG para usar en otros reportes.")
+    st.info("Descarga todos los gráficos como imágenes PNG")
     
     if st.button("🖼️ Exportar Gráficos como Imágenes", use_container_width=True):
         exportar_graficos_imagenes()
 
-# FUNCIONES PARA POWERPOINT (VERSIÓN CORREGIDA Y ROBUSTA)
+# FUNCIÓN POWERPOINT - VERSIÓN SIMPLIFICADA Y ROBUSTA
 def generar_powerpoint_completo():
-    """Generar una presentación PowerPoint profesional con todos los gráficos y métricas"""
+    """Generar una presentación PowerPoint básica pero funcional"""
+    
+    # Verificación robusta de disponibilidad
     if not PPTX_AVAILABLE:
-        st.error("❌ La funcionalidad de PowerPoint no está disponible. Instala python-pptx.")
-        return
+        st.error("""
+        ❌ **PowerPoint no disponible** 
         
+        Para habilitar esta función en Streamlit Cloud:
+        1. Verifica que `python-pptx==0.6.21` esté en requirements.txt
+        2. Asegúrate de que el despliegue se haya realizado después de este cambio
+        3. Si persiste, prueba con una versión diferente: `python-pptx==0.6.18`
+        """)
+        return
+    
     try:
-        with st.spinner("🔄 Generando reporte ejecutivo en PowerPoint..."):
-            # Crear presentación
+        with st.spinner("📊 Creando presentación PowerPoint..."):
+            # Crear presentación muy básica
             prs = Presentation()
             
-            # Slide 1: Portada
-            try:
-                slide = prs.slides.add_slide(prs.slide_layouts[0])
-                title = slide.shapes.title
-                subtitle = slide.placeholders[1]
-                
-                title.text = "REPORTE DE PRODUCCIÓN"
-                subtitle.text = f"Adimatec S.A.\n{datetime.now().strftime('%d/%m/%Y')}"
-            except Exception as e:
-                st.warning(f"⚠️ Error en slide de portada: {str(e)}")
+            # Slide 1: Portada simple
+            slide = prs.slides.add_slide(prs.slide_layouts[0])
+            slide.shapes.title.text = "Reporte de Producción"
+            slide.placeholders[1].text = f"Adimatec\n{datetime.now().strftime('%d/%m/%Y')}"
             
-            # Slide 2: Resumen Ejecutivo
-            try:
-                slide = prs.slides.add_slide(prs.slide_layouts[1])
-                title = slide.shapes.title
-                content = slide.placeholders[1]
-                
-                title.text = "Resumen Ejecutivo"
-                tf = content.text_frame
-                tf.text = "Métricas Principales:"
-                
-                # Agregar métricas de manera segura
-                metrics = [
-                    f"• Total de OTs: {total_ots}",
-                    f"• OTs Facturadas: {ots_facturadas} ({porcentaje_facturado:.1f}%)",
-                    f"• OTs en Proceso: {ots_en_proceso}",
-                    f"• OTs Vencidas: {ots_vencidas}",
-                    f"• OTs por Vencer: {ots_por_vencer}",
-                    f"• Reprocesos: {total_reprocesos} ({porcentaje_reprocesos:.1f}%)"
-                ]
-                
-                for metric in metrics:
-                    p = tf.add_paragraph()
-                    p.text = metric
-                    
-            except Exception as e:
-                st.warning(f"⚠️ Error en slide de resumen: {str(e)}")
+            # Slide 2: Métricas principales
+            slide = prs.slides.add_slide(prs.slide_layouts[1])
+            slide.shapes.title.text = "Métricas Principales"
+            content = slide.placeholders[1].text_frame
+            content.text = f"""
+            Total OTs: {total_ots}
+            OTs Facturadas: {ots_facturadas}
+            OTs Vencidas: {ots_vencidas}
+            OTs por Vencer: {ots_por_vencer}
+            % Facturación: {porcentaje_facturado:.1f}%
+            % Reprocesos: {porcentaje_reprocesos:.1f}%
+            """
             
-            # Slide 3: OTs Vencidas y Por Vencer
-            if fig_ots_vencidas is not None:
-                try:
-                    slide = prs.slides.add_slide(prs.slide_layouts[5])  # Layout en blanco
-                    title_shape = slide.shapes.add_textbox(Inches(0.5), Inches(0.3), Inches(9), Inches(0.8))
-                    title_frame = title_shape.text_frame
-                    title_frame.text = "OTs VENCIDAS Y POR VENCER"
-                    
-                    # Guardar gráfico temporalmente
-                    with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmpfile:
-                        fig_ots_vencidas.write_image(tmpfile.name, width=1000, height=600, scale=2)
-                        slide.shapes.add_picture(tmpfile.name, Inches(0.5), Inches(1.2), width=Inches(9))
-                        os.unlink(tmpfile.name)  # Eliminar archivo temporal
-                        
-                except Exception as e:
-                    st.warning(f"⚠️ Error en slide de OTs vencidas: {str(e)}")
+            # Slide 3: Recomendaciones
+            slide = prs.slides.add_slide(prs.slide_layouts[1])
+            slide.shapes.title.text = "Recomendaciones"
+            content = slide.placeholders[1].text_frame
+            content.text = "Análisis generado automáticamente\nDashboard de Producción Adimatec"
             
-            # Slide 4: Facturación
-            if fig_facturacion is not None:
-                try:
-                    slide = prs.slides.add_slide(prs.slide_layouts[5])
-                    title_shape = slide.shapes.add_textbox(Inches(0.5), Inches(0.3), Inches(9), Inches(0.8))
-                    title_frame = title_shape.text_frame
-                    title_frame.text = "ANÁLISIS DE FACTURACIÓN"
-                    
-                    with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmpfile:
-                        fig_facturacion.write_image(tmpfile.name, width=800, height=600, scale=2)
-                        slide.shapes.add_picture(tmpfile.name, Inches(1), Inches(1.2), width=Inches(8))
-                        os.unlink(tmpfile.name)
-                        
-                except Exception as e:
-                    st.warning(f"⚠️ Error en slide de facturación: {str(e)}")
+            # Guardar archivo
+            filename = f"reporte_adimatec_{datetime.now().strftime('%Y%m%d_%H%M')}.pptx"
+            prs.save(filename)
             
-            # Slide 5: Reprocesos
-            if fig_reprocesos is not None and total_reprocesos > 0:
-                try:
-                    slide = prs.slides.add_slide(prs.slide_layouts[5])
-                    title_shape = slide.shapes.add_textbox(Inches(0.5), Inches(0.3), Inches(9), Inches(0.8))
-                    title_frame = title_shape.text_frame
-                    title_frame.text = "ANÁLISIS DE REPROCESOS"
-                    
-                    with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmpfile:
-                        fig_reprocesos.write_image(tmpfile.name, width=800, height=600, scale=2)
-                        slide.shapes.add_picture(tmpfile.name, Inches(1), Inches(1.2), width=Inches(8))
-                        os.unlink(tmpfile.name)
-                        
-                except Exception as e:
-                    st.warning(f"⚠️ Error en slide de reprocesos: {str(e)}")
+            # Ofrecer descarga
+            with open(filename, 'rb') as f:
+                st.download_button(
+                    label="📥 Descargar PowerPoint",
+                    data=f.read(),
+                    file_name=filename,
+                    mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                )
             
-            # Slide 6: Desviaciones de Horas
-            if fig_desviaciones is not None and total_horas_programadas > 0:
-                try:
-                    slide = prs.slides.add_slide(prs.slide_layouts[5])
-                    title_shape = slide.shapes.add_textbox(Inches(0.5), Inches(0.3), Inches(9), Inches(0.8))
-                    title_frame = title_shape.text_frame
-                    title_frame.text = "DESVIACIONES DE HORAS"
-                    
-                    with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmpfile:
-                        fig_desviaciones.write_image(tmpfile.name, width=1000, height=600, scale=2)
-                        slide.shapes.add_picture(tmpfile.name, Inches(0.5), Inches(1.2), width=Inches(9))
-                        os.unlink(tmpfile.name)
-                        
-                except Exception as e:
-                    st.warning(f"⚠️ Error en slide de desviaciones: {str(e)}")
-            
-            # Slide 7: Análisis de Pareto (si existe)
-            if 'fig_pareto' in globals() and fig_pareto is not None:
-                try:
-                    slide = prs.slides.add_slide(prs.slide_layouts[5])
-                    title_shape = slide.shapes.add_textbox(Inches(0.5), Inches(0.3), Inches(9), Inches(0.8))
-                    title_frame = title_shape.text_frame
-                    title_frame.text = "ANÁLISIS DE PARETO"
-                    
-                    with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmpfile:
-                        fig_pareto.write_image(tmpfile.name, width=1000, height=600, scale=2)
-                        slide.shapes.add_picture(tmpfile.name, Inches(0.5), Inches(1.2), width=Inches(9))
-                        os.unlink(tmpfile.name)
-                        
-                except Exception as e:
-                    st.warning(f"⚠️ Error en slide de Pareto: {str(e)}")
-            
-            # Slide 8: Recomendaciones
-            try:
-                slide = prs.slides.add_slide(prs.slide_layouts[1])
-                title = slide.shapes.title
-                content = slide.placeholders[1]
-                
-                title.text = "Recomendaciones y Acciones"
-                tf = content.text_frame
-                tf.text = "Acciones Prioritarias:"
-                
-                # Recomendaciones basadas en los datos
-                recomendaciones = []
-                
-                if ots_vencidas > 0:
-                    recomendaciones.append(f"• Atender {ots_vencidas} OTs vencidas urgentemente")
-                
-                if ots_por_vencer > 0:
-                    recomendaciones.append(f"• Revisar {ots_por_vencer} OTs por vencer en próxima semana")
-                
-                if porcentaje_reprocesos > 5:
-                    recomendaciones.append(f"• Investigar causas de reprocesos ({porcentaje_reprocesos:.1f}%)")
-                
-                if porcentaje_facturado < 80:
-                    recomendaciones.append(f"• Mejorar proceso de facturación ({porcentaje_facturado:.1f}%)")
-                
-                if not ots_desviacion_negativa.empty:
-                    recomendaciones.append(f"• Analizar {len(ots_desviacion_negativa)} OTs con desviaciones negativas")
-                
-                # Si no hay recomendaciones específicas, agregar una general
-                if not recomendaciones:
-                    recomendaciones.append("• Mantener el buen desempeño actual")
-                
-                for rec in recomendaciones:
-                    p = tf.add_paragraph()
-                    p.text = rec
-                    
-                p = tf.add_paragraph()
-                p.text = f"\nPróxima revisión: {(datetime.now() + timedelta(days=7)).strftime('%d/%m/%Y')}"
-                
-            except Exception as e:
-                st.warning(f"⚠️ Error en slide de recomendaciones: {str(e)}")
-            
-            # Guardar presentación
-            try:
-                filename = f"Reporte_Produccion_Adimatec_{datetime.now().strftime('%Y%m%d_%H%M')}.pptx"
-                prs.save(filename)
-                
-                # Ofrecer descarga
-                with open(filename, 'rb') as f:
-                    st.download_button(
-                        label="📥 Descargar Reporte PowerPoint",
-                        data=f.read(),
-                        file_name=filename,
-                        mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-                        use_container_width=True
-                    )
-                
-                st.success("🎉 ¡Reporte ejecutivo generado exitosamente!")
-                st.info("El reporte incluye: Portada, Resumen Ejecutivo, Análisis de OTs Vencidas, Facturación, Reprocesos, Desviaciones de Horas y Plan de Acción.")
-                
-                # Limpiar archivo temporal
-                if os.path.exists(filename):
-                    os.remove(filename)
-                    
-            except Exception as e:
-                st.error(f"❌ Error al guardar el archivo: {str(e)}")
+            st.success("✅ Presentación PowerPoint generada exitosamente!")
             
     except Exception as e:
-        st.error(f"❌ Error crítico al generar la presentación: {str(e)}")
-        st.info("💡 **Solución:** Verifica que todas las librerías estén instaladas correctamente y que haya suficiente espacio en disco.")
+        st.error(f"❌ Error al crear PowerPoint: {str(e)}")
+        st.info("""
+        **Posibles soluciones:**
+        1. Verifica que `python-pptx` esté en requirements.txt
+        2. Prueba con una versión anterior: `python-pptx==0.6.18`
+        3. Contacta con soporte de Streamlit Cloud
+        """)
 
 def exportar_graficos_imagenes():
     """Exportar gráficos individuales como imágenes PNG"""
     try:
-        with st.spinner("📸 Exportando gráficos como imágenes..."):
+        with st.spinner("📸 Exportando gráficos..."):
             temp_files = []
             
-            # Lista de gráficos a exportar (incluyendo los nuevos)
+            # Solo exportar gráficos que existen
             graficos = {
-                "01_OTs_Vencidas_Por_Vencer.png": fig_ots_vencidas,
-                "02_Facturacion.png": fig_facturacion,
-                "03_Reprocesos.png": fig_reprocesos,
-                "04_Desviaciones_Horas.png": fig_desviaciones,
-                "05_Pareto_Desviaciones.png": fig_pareto if 'fig_pareto' in locals() else None,
-                "06_OTs_por_Cliente.png": fig_clientes if 'fig_clientes' in locals() else None,
-                "07_OTs_por_Estatus.png": fig_estatus if 'fig_estatus' in locals() else None
+                "OTs_Vencidas.png": fig_ots_vencidas,
+                "Facturacion.png": fig_facturacion, 
+                "Desviaciones_Horas.png": fig_desviaciones,
             }
+            
+            # Agregar gráficos condicionales
+            if fig_reprocesos is not None:
+                graficos["Reprocesos.png"] = fig_reprocesos
+            if fig_pareto is not None:
+                graficos["Pareto.png"] = fig_pareto
             
             for filename, figura in graficos.items():
                 if figura is not None:
                     try:
                         temp_path = f"temp_{filename}"
-                        figura.write_image(temp_path, width=1200, height=800, scale=2)
+                        figura.write_image(temp_path, width=800, height=600)
                         temp_files.append(temp_path)
                     except Exception as e:
-                        st.warning(f"No se pudo exportar {filename}: {str(e)}")
+                        st.warning(f"No se pudo exportar {filename}")
             
             if temp_files:
-                zip_filename = f"Graficos_Produccion_Adimatec_{datetime.now().strftime('%Y%m%d_%H%M')}.zip"
+                zip_filename = f"graficos_adimatec_{datetime.now().strftime('%Y%m%d_%H%M')}.zip"
                 with zipfile.ZipFile(zip_filename, 'w') as zipf:
                     for file in temp_files:
                         zipf.write(file, os.path.basename(file))
                 
                 with open(zip_filename, 'rb') as f:
                     st.download_button(
-                        label="📦 Descargar Todos los Gráficos (ZIP)",
+                        label="📦 Descargar Gráficos (ZIP)",
                         data=f.read(),
                         file_name=zip_filename,
                         mime="application/zip",
@@ -848,12 +719,12 @@ def exportar_graficos_imagenes():
                     if os.path.exists(file):
                         os.remove(file)
                 
-                st.success(f"✅ {len(temp_files)} gráficos exportados exitosamente!")
+                st.success(f"✅ {len(temp_files)} gráficos exportados!")
             else:
-                st.warning("⚠️ No hay gráficos disponibles para exportar.")
+                st.warning("No hay gráficos para exportar")
                 
     except Exception as e:
-        st.error(f"❌ Error al exportar gráficos: {str(e)}")
+        st.error(f"Error al exportar gráficos: {str(e)}")
 
 # Tablas de datos
 st.markdown("---")
