@@ -550,16 +550,16 @@ col1, col2 = st.columns(2)
 
 with col1:
     if total_ots > 0:
-        fig_facturacion = px.pie(
-            values=[ots_facturadas, total_ots - ots_facturadas],
-            names=['Facturado', 'No Facturado'],
-            title="Total de OTs vs Facturado",
-            hole=0.4,
-            color=['Facturado', 'No Facturado'],
-            color_discrete_map={'Facturado': '#00CC96', 'No Facturado': '#EF553B'}
-        )
-        fig_facturacion.update_traces(textinfo='percent+label')
-        st.plotly_chart(fig_facturacion, use_container_width=True)
+    fig_facturacion = px.pie(
+        values=[ots_facturadas, total_ots - ots_facturadas],
+        names=['Facturado', 'No Facturado'],
+        title="Total de OTs vs Facturado",
+        hole=0.4,
+        color=['Facturado', 'No Facturado'],
+        color_discrete_map={'Facturado': '#00CC96', 'No Facturado': '#EF553B'}
+    )
+    fig_facturacion.update_traces(textinfo='percent+label')
+    st.plotly_chart(fig_facturacion, use_container_width=True)
     else: 
         st.info("No hay OTs para mostrar el gráfico de facturación")
 with col2:
@@ -665,50 +665,155 @@ with col2:
         with st.spinner("📸 Exportando gráficos como imágenes..."):
             temp_files = []
             
-            # Lista de gráficos a exportar - VERIFICACIÓN DIRECTA
+            # Lista de gráficos a exportar - creamos una lista local de figuras
             graficos = {}
             
-            # Gráfico 1: OTs Vencidas y Por Vencer
-            if 'fig_ots_vencidas' in globals() and fig_ots_vencidas is not None:
-                graficos["01_OTs_Vencidas_Por_Vencer.png"] = fig_ots_vencidas
+            # Verificar cada gráfico individualmente
+            try:
+                # Gráfico 1: OTs Vencidas y Por Vencer
+                if not estado_entrega_counts_filtrado.empty and 'fig_ots_vencidas' in locals():
+                    graficos["01_OTs_Vencidas_Por_Vencer.png"] = fig_ots_vencidas
+                elif not estado_entrega_counts_filtrado.empty:
+                    # Recrear el gráfico si es necesario
+                    fig_temp = px.bar(
+                        x=estado_entrega_counts_filtrado.index,
+                        y=estado_entrega_counts_filtrado.values,
+                        title="OTs Vencidas y Por Vencer",
+                        labels={'x': 'Estado de Entrega', 'y': 'Cantidad de OTs'},
+                        color=estado_entrega_counts_filtrado.index,
+                        color_discrete_map={'Vencida': '#FF4B4B', 'Por vencer': '#FFA500'},
+                        text=estado_entrega_counts_filtrado.values
+                    )
+                    fig_temp.update_traces(texttemplate='%{text}', textposition='outside')
+                    fig_temp.update_layout(showlegend=False, yaxis_title="Cantidad de OTs", xaxis_title="", height=400)
+                    graficos["01_OTs_Vencidas_Por_Vencer.png"] = fig_temp
+            except Exception as e:
+                st.warning(f"No se pudo preparar gráfico 1: {e}")
             
-            # Gráfico 2: Facturación
-            if 'fig_facturacion' in globals() and fig_facturacion is not None:
-                graficos["02_Facturacion.png"] = fig_facturacion
+            try:
+                # Gráfico 2: Facturación
+                if total_ots > 0:
+                    fig_temp = px.pie(
+                        values=[ots_facturadas, total_ots - ots_facturadas],
+                        names=['Facturado', 'No Facturado'],
+                        title="Total de OTs vs Facturado",
+                        hole=0.4,
+                        color=['Facturado', 'No Facturado'],
+                        color_discrete_map={'Facturado': '#00CC96', 'No Facturado': '#EF553B'}
+                    )
+                    fig_temp.update_traces(textinfo='percent+label')
+                    graficos["02_Facturacion.png"] = fig_temp
+            except Exception as e:
+                st.warning(f"No se pudo preparar gráfico 2: {e}")
             
-            # Gráfico 3: Desviaciones de Horas
-            if 'fig_desviaciones' in globals() and fig_desviaciones is not None:
-                graficos["03_Desviaciones_Horas.png"] = fig_desviaciones
+            try:
+                # Gráfico 3: Desviaciones de Horas
+                if total_horas_programadas > 0:
+                    categorias = ['Horas Programadas', 'Desviaciones Positivas', 'Desviaciones Negativas']
+                    valores = [total_horas_programadas, horas_desviacion_positiva, horas_desviacion_negativa]
+                    colores = ['#1f77b4', '#2ca02c', '#d62728']
+                    
+                    fig_temp = go.Figure()
+                    fig_temp.add_trace(go.Bar(x=categorias, y=valores, marker_color=colores, text=[f'{val:.1f}h' for val in valores], textposition='outside'))
+                    fig_temp.update_layout(title="Comparación de Horas Programadas vs Desviaciones", yaxis_title="Horas", xaxis_title="", showlegend=False, height=500)
+                    graficos["03_Desviaciones_Horas.png"] = fig_temp
+            except Exception as e:
+                st.warning(f"No se pudo preparar gráfico 3: {e}")
             
-            # Gráfico 4: Reprocesos
-            if 'fig_reprocesos' in globals() and fig_reprocesos is not None:
-                graficos["04_Reprocesos.png"] = fig_reprocesos
+            try:
+                # Gráfico 4: Reprocesos
+                if total_ots > 0 and total_reprocesos > 0:
+                    fig_temp = px.pie(
+                        values=[total_reprocesos, total_ots - total_reprocesos],
+                        names=['Reprocesos', 'OTs Normales'],
+                        title="Distribución: OTs Normales vs Reprocesos",
+                        hole=0.4,
+                        color=['Reprocesos', 'OTs Normales'],
+                        color_discrete_map={'Reprocesos': '#FFA15A', 'OTs Normales': '#636EFA'}
+                    )
+                    fig_temp.update_traces(textinfo='percent+label')
+                    graficos["04_Reprocesos.png"] = fig_temp
+            except Exception as e:
+                st.warning(f"No se pudo preparar gráfico 4: {e}")
             
-            # Gráfico 5: Pareto
-            if 'fig_pareto' in globals() and fig_pareto is not None:
-                graficos["05_Pareto_Desviaciones.png"] = fig_pareto
+            try:
+                # Gráfico 5: Pareto (si existe)
+                if not ots_desviacion_negativa.empty and 'fig_pareto' in locals():
+                    graficos["05_Pareto_Desviaciones.png"] = fig_pareto
+                elif not ots_desviacion_negativa.empty:
+                    # Recrear gráfico Pareto si es necesario
+                    pareto_data = ots_desviacion_negativa[['ot', 'diferencia_horas']].copy()
+                    pareto_data = pareto_data.sort_values('diferencia_horas', ascending=False)
+                    pareto_data['porcentaje_acumulado'] = (pareto_data['diferencia_horas'].cumsum() / pareto_data['diferencia_horas'].sum()) * 100
+                    
+                    fig_temp = go.Figure()
+                    fig_temp.add_trace(go.Bar(
+                        x=pareto_data['ot'],
+                        y=pareto_data['diferencia_horas'],
+                        name='Horas de Desviación',
+                        marker_color='#FF6B6B',
+                        text=pareto_data['diferencia_horas'].round(1),
+                        textposition='outside'
+                    ))
+                    fig_temp.add_trace(go.Scatter(
+                        x=pareto_data['ot'],
+                        y=pareto_data['porcentaje_acumulado'],
+                        name='Porcentaje Acumulado',
+                        line=dict(color='#4ECDC4', width=3),
+                        yaxis='y2',
+                        mode='lines+markers'
+                    ))
+                    fig_temp.update_layout(
+                        title="Principio de Pareto - Desviaciones Negativas por OT",
+                        xaxis_title="OT",
+                        yaxis_title="Horas de Desviación Negativa",
+                        yaxis2=dict(
+                            title="Porcentaje Acumulado (%)",
+                            overlaying='y',
+                            side='right',
+                            range=[0, 100]
+                        ),
+                        showlegend=True,
+                        height=500,
+                        xaxis=dict(tickangle=45)
+                    )
+                    graficos["05_Pareto_Desviaciones.png"] = fig_temp
+            except Exception as e:
+                st.warning(f"No se pudo preparar gráfico 5: {e}")
             
-            # Gráfico 6: OTs por Cliente
-            if 'fig_clientes' in globals() and fig_clientes is not None:
-                graficos["06_OTs_por_Cliente.png"] = fig_clientes
+            try:
+                # Gráfico 6: OTs por Cliente
+                if not ot_master_filtrado.empty and 'cliente' in ot_master_filtrado.columns:
+                    ots_por_cliente = ot_master_filtrado['cliente'].value_counts()
+                    if not ots_por_cliente.empty:
+                        fig_temp = px.pie(values=ots_por_cliente.values, names=ots_por_cliente.index, title="Distribución de OTs por Cliente")
+                        graficos["06_OTs_por_Cliente.png"] = fig_temp
+            except Exception as e:
+                st.warning(f"No se pudo preparar gráfico 6: {e}")
             
-            # Gráfico 7: OTs por Estatus
-            if 'fig_estatus' in globals() and fig_estatus is not None:
-                graficos["07_OTs_por_Estatus.png"] = fig_estatus
+            try:
+                # Gráfico 7: OTs por Estatus
+                if not ot_master_filtrado.empty and 'estatus' in ot_master_filtrado.columns:
+                    ots_por_estatus = ot_master_filtrado['estatus'].value_counts()
+                    if not ots_por_estatus.empty:
+                        fig_temp = px.bar(x=ots_por_estatus.index, y=ots_por_estatus.values, title="OTs por Estado", labels={'x': 'Estatus', 'y': 'Cantidad'}, color=ots_por_estatus.index)
+                        graficos["07_OTs_por_Estatus.png"] = fig_temp
+            except Exception as e:
+                st.warning(f"No se pudo preparar gráfico 7: {e}")
             
             # VERIFICAR SI HAY GRÁFICOS DISPONIBLES
             if not graficos:
-                st.warning("⚠️ No se encontraron gráficos para exportar. Asegúrate de que los gráficos se hayan generado correctamente.")
+                st.warning("⚠️ No hay gráficos disponibles para exportar. Asegúrate de que los datos se hayan cargado correctamente y que haya gráficos para mostrar.")
                 return
             
+            # Exportar cada gráfico
             for filename, figura in graficos.items():
                 try:
                     temp_path = f"temp_{filename}"
                     figura.write_image(temp_path, width=1200, height=800, scale=2)
                     temp_files.append(temp_path)
-                    st.success(f"✅ {filename} exportado correctamente")
                 except Exception as e:
-                    st.warning(f"❌ No se pudo exportar {filename}: {str(e)}")
+                    st.warning(f"No se pudo exportar {filename}: {str(e)}")
             
             if temp_files:
                 # Crear ZIP
@@ -724,8 +829,7 @@ with col2:
                         data=f.read(),
                         file_name=zip_filename,
                         mime="application/zip",
-                        use_container_width=True,
-                        key="download_zip"
+                        use_container_width=True
                     )
                 
                 # Limpiar archivos temporales
@@ -734,7 +838,6 @@ with col2:
                         os.remove(file)
                 
                 st.success(f"✅ {len(temp_files)} gráficos exportados exitosamente!")
-                st.info("📁 Los gráficos se descargarán en alta resolución (PNG) comprimidos en un archivo ZIP.")
             else:
                 st.warning("⚠️ No se pudieron exportar los gráficos. Verifica que kaleido esté instalado correctamente.")
                     
