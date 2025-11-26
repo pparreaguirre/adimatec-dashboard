@@ -11,14 +11,11 @@ import io
 import tempfile
 import zipfile
 import os
-import base64
 from fpdf import FPDF
-import matplotlib.pyplot as plt
 
 # =============================================
 # INICIALIZACIÓN DE VARIABLES GLOBALES
 # =============================================
-# Inicializar todas las variables para evitar errores
 ots_en_proceso = 0
 ots_vencidas = 0
 ots_por_vencer = 0
@@ -29,21 +26,8 @@ fig_desviaciones = None
 fig_pareto = None
 
 # =============================================
-# MANEJO ROBUSTO DE IMPORTACIONES DE POWERPOINT
+# CONFIGURACIÓN STREAMLIT
 # =============================================
-PPTX_AVAILABLE = False
-try:
-    from pptx import Presentation
-    from pptx.util import Inches
-    PPTX_AVAILABLE = True
-except ImportError as e:
-    st.sidebar.warning("⚠️ PowerPoint no disponible: python-pptx no está instalado")
-
-import tempfile
-import zipfile
-import os
-
-# Configuración de la página para móviles
 st.set_page_config(
     page_title="Dashboard de Producción - Adimatec",
     page_icon="🏭",
@@ -51,7 +35,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Limpiar cache para desarrollo
+# Limpiar cache
 st.cache_data.clear()
 
 # Cargar logo
