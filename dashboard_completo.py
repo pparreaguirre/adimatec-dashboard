@@ -11,19 +11,6 @@ import io
 import tempfile
 import zipfile
 import os
-from fpdf import FPDF
-
-# =============================================
-# INICIALIZACIÓN DE VARIABLES GLOBALES
-# =============================================
-ots_en_proceso = 0
-ots_vencidas = 0
-ots_por_vencer = 0
-fig_ots_vencidas = None
-fig_facturacion = None
-fig_reprocesos = None
-fig_desviaciones = None
-fig_pareto = None
 
 # =============================================
 # CONFIGURACIÓN STREAMLIT
@@ -42,7 +29,7 @@ st.cache_data.clear()
 @st.cache_data
 def load_logo(url):
     try:
-        response = requests.get(url)
+        response = requests.get(url, timeout=10)
         image = Image.open(io.BytesIO(response.content))
         return image
     except:
@@ -69,7 +56,7 @@ with col_icon:
 
 st.markdown("---")
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=300, show_spinner="Cargando datos desde Google Sheets...")
 def load_data():
     """Cargar datos desde Google Sheets"""
     try:
@@ -89,10 +76,12 @@ def load_data():
         st.error(f"Error al cargar los datos desde Google Sheets: {e}")
         return None, None
 
-# Cargar datos
-ot_master, procesos = load_data()
+# Cargar datos con spinner
+with st.spinner("Cargando datos desde Google Sheets..."):
+    ot_master, procesos = load_data()
 
 if ot_master is None or procesos is None:
+    st.error("No se pudieron cargar los datos. Por favor, verifica la conexión e intenta nuevamente.")
     st.stop()
 
 # Asegurar que la columna 'ot' sea string en ambos dataframes
@@ -262,19 +251,21 @@ else:
 # Métricas principales
 st.header("📊 Métricas Principales")
 col1, col2, col3, col4, col5, col6 = st.columns(6)
-with col1: st.metric("Total OTs", total_ots)
-# En la sección de métricas principales, cambia:
+with col1: 
+    st.metric("Total OTs", total_ots)
 with col2: 
     ots_en_proceso = len(ot_master_filtrado[ot_master_filtrado['estatus'] == 'EN PROCESO'])
     st.metric("OTs en Proceso", ots_en_proceso)
-
+with col3:
+    st.metric("OTs Facturadas", ots_facturadas, f"{porcentaje_facturado:.1f}%")
 with col4: 
     ots_vencidas = len(ot_master_filtrado[(ot_master_filtrado['estado_entrega'] == 'Vencida') & (~ot_master_filtrado['estatus'].isin(estados_no_vencidos))])
     st.metric("OTs Vencidas", ots_vencidas, delta=-ots_vencidas, delta_color="inverse")
-
 with col5: 
     ots_por_vencer = len(ot_master_filtrado[(ot_master_filtrado['estado_entrega'] == 'Por vencer') & (~ot_master_filtrado['estatus'].isin(estados_no_vencidos))])
     st.metric("OTs por Vencer", ots_por_vencer, delta=ots_por_vencer, delta_color="off")
+with col6:
+    st.metric("Reprocesos", total_reprocesos, f"{porcentaje_reprocesos:.1f}%")
 
 st.markdown("---")
 
@@ -284,7 +275,6 @@ estado_entrega_counts = ot_master_filtrado['estado_entrega'].value_counts()
 estados_interes = ['Vencida', 'Por vencer']
 estado_entrega_counts_filtrado = estado_entrega_counts[estado_entrega_counts.index.isin(estados_interes)]
 
-fig_ots_vencidas = None
 if not estado_entrega_counts_filtrado.empty:
     fig_ots_vencidas = px.bar(
         x=estado_entrega_counts_filtrado.index,
@@ -306,27 +296,32 @@ col1, col2 = st.columns(2)
 with col1:
     st.subheader("📋 OTs Vencidas (Solo Activas)")
     ots_vencidas_df = ot_master_filtrado[(ot_master_filtrado['estado_entrega'] == 'Vencida') & (~ot_master_filtrado['estatus'].isin(estados_no_vencidos))][['ot', 'cliente', 'fecha_entrega', 'estatus']]
-    if not ots_vencidas_df.empty: st.dataframe(ots_vencidas_df, use_container_width=True, height=200)
-    else: st.info("No hay OTs vencidas activas")
+    if not ots_vencidas_df.empty: 
+        st.dataframe(ots_vencidas_df, use_container_width=True, height=200)
+    else: 
+        st.info("No hay OTs vencidas activas")
 with col2:
     st.subheader("📋 OTs por Vencer (Próximos 7 días, Solo Activas)")
     ots_por_vencer_df = ot_master_filtrado[(ot_master_filtrado['estado_entrega'] == 'Por vencer') & (~ot_master_filtrado['estatus'].isin(estados_no_vencidos))][['ot', 'cliente', 'fecha_entrega', 'estatus']]
-    if not ots_por_vencer_df.empty: st.dataframe(ots_por_vencer_df, use_container_width=True, height=200)
-    else: st.info("No hay OTs por vencer activas")
+    if not ots_por_vencer_df.empty: 
+        st.dataframe(ots_por_vencer_df, use_container_width=True, height=200)
+    else: 
+        st.info("No hay OTs por vencer activas")
 
 # OTs Completadas
 st.markdown("---")
 st.header("✅ OTs Completadas")
 ots_completadas_df = ot_master_filtrado[ot_master_filtrado['estatus'].isin(estados_no_vencidos)][['ot', 'cliente', 'fecha_entrega', 'estatus', 'fecha_terminado']]
-if not ots_completadas_df.empty: st.dataframe(ots_completadas_df, use_container_width=True, height=200)
-else: st.info("No hay OTs completadas con los filtros actuales")
+if not ots_completadas_df.empty: 
+    st.dataframe(ots_completadas_df, use_container_width=True, height=200)
+else: 
+    st.info("No hay OTs completadas con los filtros actuales")
 
 # REPROCESOS después de OTs Completadas
 st.markdown("---")
 st.header("🔄 Análisis de Reprocesos")
 col1, col2 = st.columns(2)
 
-fig_reprocesos = None
 with col1:
     if total_ots > 0 and total_reprocesos > 0:
         fig_reprocesos = px.pie(
@@ -339,13 +334,16 @@ with col1:
         )
         fig_reprocesos.update_traces(textinfo='percent+label')
         st.plotly_chart(fig_reprocesos, use_container_width=True)
-    else: st.info("No hay reprocesos para mostrar")
+    else: 
+        st.info("No hay reprocesos para mostrar")
 with col2:
     st.metric("Total Reprocesos", total_reprocesos)
     st.metric("OTs Normales", total_ots - total_reprocesos)
     st.metric("% Reprocesos", f"{porcentaje_reprocesos:.1f}%")
-    if total_reprocesos > 0: st.warning(f"Reprocesos identificados: {total_reprocesos} ({porcentaje_reprocesos:.1f}%)")
-    else: st.success("✅ No se han identificado reprocesos")
+    if total_reprocesos > 0: 
+        st.warning(f"Reprocesos identificados: {total_reprocesos} ({porcentaje_reprocesos:.1f}%)")
+    else: 
+        st.success("✅ No se han identificado reprocesos")
 
 # Gráficos existentes
 st.markdown("---")
@@ -357,8 +355,10 @@ with col1:
         if not ots_por_cliente.empty:
             fig_clientes = px.pie(values=ots_por_cliente.values, names=ots_por_cliente.index, title="Distribución de OTs por Cliente")
             st.plotly_chart(fig_clientes, use_container_width=True)
-        else: st.info("No hay datos de clientes para mostrar")
-    else: st.info("No hay datos para mostrar")
+        else: 
+            st.info("No hay datos de clientes para mostrar")
+    else: 
+        st.info("No hay datos para mostrar")
 with col2:
     st.subheader("🎯 OTs por Estatus")
     if not ot_master_filtrado.empty and 'estatus' in ot_master_filtrado.columns:
@@ -366,14 +366,15 @@ with col2:
         if not ots_por_estatus.empty:
             fig_estatus = px.bar(x=ots_por_estatus.index, y=ots_por_estatus.values, title="OTs por Estado", labels={'x': 'Estatus', 'y': 'Cantidad'}, color=ots_por_estatus.index)
             st.plotly_chart(fig_estatus, use_container_width=True)
-        else: st.info("No hay datos de estatus para mostrar")
-    else: st.info("No hay datos para mostrar")
+        else: 
+            st.info("No hay datos de estatus para mostrar")
+    else: 
+        st.info("No hay datos para mostrar")
 
-# NUEVO: GRÁFICO DE DESVIACIONES DE HORAS
+# GRÁFICO DE DESVIACIONES DE HORAS
 st.markdown("---")
 st.header("📊 Desviaciones de Horas Programadas")
 
-fig_desviaciones = None
 if total_horas_programadas > 0:
     categorias = ['Horas Programadas', 'Desviaciones Positivas', 'Desviaciones Negativas']
     valores = [total_horas_programadas, horas_desviacion_positiva, horas_desviacion_negativa]
@@ -385,12 +386,16 @@ if total_horas_programadas > 0:
     st.plotly_chart(fig_desviaciones, use_container_width=True)
     
     col1, col2, col3 = st.columns(3)
-    with col1: st.metric("Total Horas Programadas", f"{total_horas_programadas:.1f}h")
-    with col2: st.metric("Desviaciones Positivas", f"{horas_desviacion_positiva:.1f}h", f"{porcentaje_positivo:.1f}%")
-    with col3: st.metric("Desviaciones Negativas", f"{horas_desviacion_negativa:.1f}h", f"{porcentaje_negativo:.1f}%", delta_color="inverse")
-else: st.warning("No hay datos suficientes de horas para mostrar las desviaciones")
+    with col1: 
+        st.metric("Total Horas Programadas", f"{total_horas_programadas:.1f}h")
+    with col2: 
+        st.metric("Desviaciones Positivas", f"{horas_desviacion_positiva:.1f}h", f"{porcentaje_positivo:.1f}%")
+    with col3: 
+        st.metric("Desviaciones Negativas", f"{horas_desviacion_negativa:.1f}h", f"{porcentaje_negativo:.1f}%", delta_color="inverse")
+else: 
+    st.warning("No hay datos suficientes de horas para mostrar las desviaciones")
 
-# NUEVA SECCIÓN: DETALLE DE OTs CON DESVIACIONES
+# DETALLE DE OTs CON DESVIACIONES
 st.markdown("---")
 st.header("📋 Detalle de OTs con Desviaciones")
 
@@ -401,11 +406,9 @@ if not ots_desviacion_positiva.empty or not ots_desviacion_negativa.empty:
         st.subheader("✅ OTs con Desviaciones Positivas")
         st.info("OTs que cumplieron o mejoraron el tiempo estimado")
         if not ots_desviacion_positiva.empty:
-            # Seleccionar columnas relevantes
             columnas_positivas = ['ot', 'cliente', 'horas_estimadas_ot', 'horas_reales_ot', 'diferencia_horas']
             columnas_disponibles = [col for col in columnas_positivas if col in ots_desviacion_positiva.columns]
             
-            # Formatear diferencia_horas para mostrar como positiva
             df_positivas_display = ots_desviacion_positiva[columnas_disponibles].copy()
             if 'diferencia_horas' in df_positivas_display.columns:
                 df_positivas_display['diferencia_horas'] = df_positivas_display['diferencia_horas'].abs()
@@ -421,7 +424,6 @@ if not ots_desviacion_positiva.empty or not ots_desviacion_negativa.empty:
         st.subheader("⚠️ OTs con Desviaciones Negativas")
         st.warning("OTs que excedieron el tiempo estimado")
         if not ots_desviacion_negativa.empty:
-            # Seleccionar columnas relevantes
             columnas_negativas = ['ot', 'cliente', 'horas_estimadas_ot', 'horas_reales_ot', 'diferencia_horas']
             columnas_disponibles = [col for col in columnas_negativas if col in ots_desviacion_negativa.columns]
             
@@ -433,13 +435,9 @@ if not ots_desviacion_positiva.empty or not ots_desviacion_negativa.empty:
 else:
     st.info("No hay datos de desviaciones para mostrar")
 
-# NUEVA SECCIÓN: ANÁLISIS PARETO DE DESVIACIONES NEGATIVAS
+# ANÁLISIS PARETO DE DESVIACIONES NEGATIVAS
 st.markdown("---")
 st.header("📈 Análisis de Pareto - Desviaciones Negativas")
-
-# Inicializar variables para evitar errores de referencia
-ots_80_percent = pd.DataFrame()
-fig_pareto = None
 
 if not ots_desviacion_negativa.empty:
     # Preparar datos para Pareto
@@ -506,19 +504,16 @@ if not ots_desviacion_negativa.empty:
     with col3:
         st.metric("Horas representadas", f"{ots_80_percent['diferencia_horas'].sum():.1f}h")
     
-    # Tabla de OTs críticas con verificación de columnas
+    # Tabla de OTs críticas
     st.subheader("🎯 OTs Críticas (Principio 80/20)")
     
-    # Obtener las OTs críticas del DataFrame original
     ots_criticas_ids = ots_80_percent['ot'].tolist()
     ots_criticas = ots_desviacion_negativa[ots_desviacion_negativa['ot'].isin(ots_criticas_ids)].copy()
     
-    # Verificar qué columnas están disponibles
     columnas_posibles = ['ot', 'cliente', 'descripcion', 'horas_estimadas_ot', 'horas_reales_ot', 'diferencia_horas', 'estatus']
     columnas_disponibles = [col for col in columnas_posibles if col in ots_criticas.columns]
     
     if len(columnas_disponibles) > 0:
-        # Ordenar por diferencia_horas descendente
         if 'diferencia_horas' in columnas_disponibles:
             ots_criticas = ots_criticas.sort_values('diferencia_horas', ascending=False)
         
@@ -542,7 +537,6 @@ st.markdown("---")
 st.header("💰 Porcentaje de Facturación")
 col1, col2 = st.columns(2)
 
-fig_facturacion = None
 with col1:
     if total_ots > 0:
         fig_facturacion = px.pie(
@@ -555,201 +549,170 @@ with col1:
         )
         fig_facturacion.update_traces(textinfo='percent+label')
         st.plotly_chart(fig_facturacion, use_container_width=True)
-    else: st.info("No hay OTs para mostrar el gráfico de facturación")
+    else: 
+        st.info("No hay OTs para mostrar el gráfico de facturación")
 with col2:
     st.metric("OTs Facturadas", ots_facturadas)
     st.metric("OTs Pendientes", total_ots - ots_facturadas)
     st.metric("Porcentaje de Facturación", f"{porcentaje_facturado:.1f}%")
-    if total_ots > 0: st.info(f"Eficiencia de facturación: {porcentaje_facturado:.1f}%")
-    else: st.info("No hay OTs para mostrar el resumen de facturación")
+    if total_ots > 0: 
+        st.info(f"Eficiencia de facturación: {porcentaje_facturado:.1f}%")
+    else: 
+        st.info("No hay OTs para mostrar el resumen de facturación")
 
 # =============================================
-# SECCIÓN DE EXPORTACIÓN PROFESIONAL (PDF + EXCEL + GRÁFICOS)
+# SECCIÓN DE EXPORTACIÓN SIMPLIFICADA (SOLO EXCEL + GRÁFICOS)
 # =============================================
 
 st.markdown("---")
-st.header("📊 Generar Reportes Ejecutivos")
+st.header("📊 Generar Reportes")
 
-col1, col2, col3 = st.columns(3)
+col1, col2 = st.columns(2)
 
 with col1:
-    st.subheader("📄 Reporte PDF Ejecutivo")
-    st.info("Genera un reporte ejecutivo completo en formato PDF listo para presentar")
-    
-    if st.button("🚀 Generar Reporte PDF", type="primary", use_container_width=True):
-        generar_reporte_pdf()
-
-with col2:
-    st.subheader("📊 Exportar Datos")
+    st.subheader("📈 Exportar Datos a Excel")
     st.info("Descarga los datos completos en formato Excel para análisis detallado")
     
-    if st.button("📈 Generar Reporte Excel", use_container_width=True):
+    def exportar_a_excel():
+        """Exportar datos completos a Excel"""
+        try:
+            with st.spinner("📊 Generando archivo Excel..."):
+                # Crear un escritor de Excel
+                with pd.ExcelWriter('reporte_adimatec.xlsx', engine='openpyxl') as writer:
+                    # Hoja 1: OT Master
+                    ot_master_filtrado.to_excel(writer, sheet_name='OT_Master', index=False)
+                    
+                    # Hoja 2: Procesos
+                    if not procesos_filtrados.empty:
+                        procesos_filtrados.to_excel(writer, sheet_name='Procesos', index=False)
+                    
+                    # Hoja 3: Resumen Ejecutivo
+                    resumen_data = {
+                        'Métrica': [
+                            'Total OTs', 
+                            'OTs Facturadas', 
+                            'OTs en Proceso', 
+                            'OTs Vencidas', 
+                            'OTs por Vencer',
+                            '% Facturación',
+                            '% Reprocesos',
+                            'Horas Programadas Totales',
+                            'Desviaciones Positivas',
+                            'Desviaciones Negativas'
+                        ],
+                        'Valor': [
+                            total_ots,
+                            ots_facturadas,
+                            ots_en_proceso,
+                            ots_vencidas,
+                            ots_por_vencer,
+                            f"{porcentaje_facturado:.1f}%",
+                            f"{porcentaje_reprocesos:.1f}%",
+                            f"{total_horas_programadas:.1f}h",
+                            f"{horas_desviacion_positiva:.1f}h",
+                            f"{horas_desviacion_negativa:.1f}h"
+                        ]
+                    }
+                    pd.DataFrame(resumen_data).to_excel(writer, sheet_name='Resumen', index=False)
+                    
+                    # Hoja 4: OTs Críticas
+                    if not ots_desviacion_negativa.empty:
+                        columnas_criticas = ['ot', 'cliente', 'horas_estimadas_ot', 'horas_reales_ot', 'diferencia_horas']
+                        columnas_disponibles = [col for col in columnas_criticas if col in ots_desviacion_negativa.columns]
+                        if columnas_disponibles:
+                            ots_desviacion_negativa[columnas_disponibles].to_excel(writer, sheet_name='OTs_Criticas', index=False)
+                
+                # Ofrecer descarga
+                with open('reporte_adimatec.xlsx', 'rb') as f:
+                    st.download_button(
+                        label="📈 Descargar Excel Completo",
+                        data=f.read(),
+                        file_name=f"Reporte_Adimatec_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        use_container_width=True
+                    )
+                
+                # Limpiar archivo temporal
+                if os.path.exists('reporte_adimatec.xlsx'):
+                    os.remove('reporte_adimatec.xlsx')
+                    
+                st.success("✅ Archivo Excel generado exitosamente!")
+                
+        except Exception as e:
+            st.error(f"Error al generar Excel: {str(e)}")
+    
+    if st.button("📊 Generar Reporte Excel", use_container_width=True):
         exportar_a_excel()
 
-with col3:
+with col2:
     st.subheader("📸 Exportar Gráficos")
     st.info("Descarga todos los gráficos como imágenes PNG en alta calidad")
     
-    if st.button("🖼️ Exportar Gráficos", use_container_width=True):
-        exportar_graficos_imagenes()
-
-# =============================================
-# FUNCIONES DE EXPORTACIÓN
-# =============================================
-
-def generar_reporte_pdf():
-    st.error("PDF no disponible temporalmente")
-    st.info("""
-    **Para habilitar PDF, agrega a requirements.txt:**
-    ```txt
-    fpdf2==2.7.4
-    ```
-    
-    **Alternativas inmediatas:**
-    - 📊 **Exportar Excel** - Todos los datos organizados
-    - 🖼️ **Exportar Gráficos** - Imágenes en alta calidad
-    - 📋 **Copiar tablas** - Directamente del dashboard
-    """)
-
-def exportar_a_excel():
-    """Exportar datos completos a Excel"""
-    try:
-        with st.spinner("📊 Generando archivo Excel..."):
-            # Crear un escritor de Excel
-            with pd.ExcelWriter('reporte_adimatec.xlsx', engine='openpyxl') as writer:
-                # Hoja 1: OT Master
-                ot_master_filtrado.to_excel(writer, sheet_name='OT_Master', index=False)
+    def exportar_graficos_imagenes():
+        """Exportar gráficos individuales como imágenes PNG"""
+        try:
+            with st.spinner("📸 Exportando gráficos como imágenes..."):
+                temp_files = []
                 
-                # Hoja 2: Procesos
-                if not procesos_filtrados.empty:
-                    procesos_filtrados.to_excel(writer, sheet_name='Procesos', index=False)
+                # Lista de gráficos a exportar
+                graficos = {}
                 
-                # Hoja 3: Resumen Ejecutivo
-                resumen_data = {
-                    'Métrica': [
-                        'Total OTs', 
-                        'OTs Facturadas', 
-                        'OTs en Proceso', 
-                        'OTs Vencidas', 
-                        'OTs por Vencer',
-                        '% Facturación',
-                        '% Reprocesos',
-                        'Horas Programadas Totales',
-                        'Desviaciones Positivas',
-                        'Desviaciones Negativas'
-                    ],
-                    'Valor': [
-                        total_ots,
-                        ots_facturadas,
-                        ots_en_proceso,
-                        ots_vencidas,
-                        ots_por_vencer,
-                        f"{porcentaje_facturado:.1f}%",
-                        f"{porcentaje_reprocesos:.1f}%",
-                        f"{total_horas_programadas:.1f}h",
-                        f"{horas_desviacion_positiva:.1f}h",
-                        f"{horas_desviacion_negativa:.1f}h"
-                    ]
-                }
-                pd.DataFrame(resumen_data).to_excel(writer, sheet_name='Resumen', index=False)
+                # Agregar gráficos condicionales
+                if 'fig_ots_vencidas' in locals() and fig_ots_vencidas is not None:
+                    graficos["01_OTs_Vencidas_Por_Vencer.png"] = fig_ots_vencidas
+                if 'fig_facturacion' in locals() and fig_facturacion is not None:
+                    graficos["02_Facturacion.png"] = fig_facturacion
+                if 'fig_desviaciones' in locals() and fig_desviaciones is not None:
+                    graficos["03_Desviaciones_Horas.png"] = fig_desviaciones
+                if 'fig_reprocesos' in locals() and fig_reprocesos is not None:
+                    graficos["04_Reprocesos.png"] = fig_reprocesos
+                if 'fig_pareto' in locals() and fig_pareto is not None:
+                    graficos["05_Pareto_Desviaciones.png"] = fig_pareto
+                if 'fig_clientes' in locals() and fig_clientes is not None:
+                    graficos["06_OTs_por_Cliente.png"] = fig_clientes
+                if 'fig_estatus' in locals() and fig_estatus is not None:
+                    graficos["07_OTs_por_Estatus.png"] = fig_estatus
                 
-                # Hoja 4: OTs Críticas
-                if not ots_desviacion_negativa.empty:
-                    columnas_criticas = ['ot', 'cliente', 'horas_estimadas_ot', 'horas_reales_ot', 'diferencia_horas']
-                    columnas_disponibles = [col for col in columnas_criticas if col in ots_desviacion_negativa.columns]
-                    if columnas_disponibles:
-                        ots_desviacion_negativa[columnas_disponibles].to_excel(writer, sheet_name='OTs_Criticas', index=False)
-            
-            # Ofrecer descarga
-            with open('reporte_adimatec.xlsx', 'rb') as f:
-                st.download_button(
-                    label="📈 Descargar Excel Completo",
-                    data=f.read(),
-                    file_name=f"Reporte_Adimatec_{datetime.now().strftime('%Y%m%d')}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    use_container_width=True
-                )
-            
-            # Limpiar archivo temporal
-            if os.path.exists('reporte_adimatec.xlsx'):
-                os.remove('reporte_adimatec.xlsx')
-                
-            st.success("✅ Archivo Excel generado exitosamente!")
-            
-    except Exception as e:
-        st.error(f"Error al generar Excel: {str(e)}")
-
-def exportar_graficos_imagenes():
-    """Exportar gráficos individuales como imágenes PNG"""
-    try:
-        with st.spinner("📸 Exportando gráficos como imágenes..."):
-            temp_files = []
-            
-            # Lista de gráficos a exportar
-            graficos = {
-                "01_OTs_Vencidas_Por_Vencer.png": fig_ots_vencidas,
-                "02_Facturacion.png": fig_facturacion,
-                "03_Desviaciones_Horas.png": fig_desviaciones,
-            }
-            
-            # Agregar gráficos condicionales
-            if fig_reprocesos is not None:
-                graficos["04_Reprocesos.png"] = fig_reprocesos
-            if fig_pareto is not None:
-                graficos["05_Pareto_Desviaciones.png"] = fig_pareto
-            if 'fig_clientes' in locals() and fig_clientes is not None:
-                graficos["06_OTs_por_Cliente.png"] = fig_clientes
-            if 'fig_estatus' in locals() and fig_estatus is not None:
-                graficos["07_OTs_por_Estatus.png"] = fig_estatus
-            
-            for filename, figura in graficos.items():
-                if figura is not None:
+                for filename, figura in graficos.items():
                     try:
                         temp_path = f"temp_{filename}"
                         figura.write_image(temp_path, width=1200, height=800, scale=2)
                         temp_files.append(temp_path)
                     except Exception as e:
                         st.warning(f"No se pudo exportar {filename}")
-            
-            if temp_files:
-                # Crear ZIP
-                zip_filename = f"Graficos_Adimatec_{datetime.now().strftime('%Y%m%d_%H%M')}.zip"
-                with zipfile.ZipFile(zip_filename, 'w') as zipf:
-                    for file in temp_files:
-                        zipf.write(file, os.path.basename(file))
                 
-                # Ofrecer descarga
-                with open(zip_filename, 'rb') as f:
-                    st.download_button(
-                        label="📦 Descargar Todos los Gráficos (ZIP)",
-                        data=f.read(),
-                        file_name=zip_filename,
-                        mime="application/zip",
-                        use_container_width=True
-                    )
-                
-                # Limpiar archivos temporales
-                for file in temp_files + [zip_filename]:
-                    if os.path.exists(file):
-                        os.remove(file)
-                
-                st.success(f"✅ {len(temp_files)} gráficos exportados exitosamente!")
-                st.info("📁 Los gráficos se descargarán en alta resolución (PNG) comprimidos en un archivo ZIP.")
-            else:
-                st.warning("⚠️ No hay gráficos disponibles para exportar.")
-                
-    except Exception as e:
-        st.error(f"❌ Error al exportar gráficos: {str(e)}")
-
-# Mensaje informativo
-st.markdown("---")
-st.info("""
-💡 **Exportación Profesional Completa:**
-- **📄 PDF Ejecutivo**: Reporte formal listo para presentación a dirección
-- **📊 Excel Completo**: Todos los datos para análisis detallado  
-- **🖼️ Gráficos HD**: Imágenes profesionales para presentaciones
-- **🎯 Formato Corporativo**: Diseñado para comunicación ejecutiva
-""")
+                if temp_files:
+                    # Crear ZIP
+                    zip_filename = f"Graficos_Adimatec_{datetime.now().strftime('%Y%m%d_%H%M')}.zip"
+                    with zipfile.ZipFile(zip_filename, 'w') as zipf:
+                        for file in temp_files:
+                            zipf.write(file, os.path.basename(file))
+                    
+                    # Ofrecer descarga
+                    with open(zip_filename, 'rb') as f:
+                        st.download_button(
+                            label="📦 Descargar Todos los Gráficos (ZIP)",
+                            data=f.read(),
+                            file_name=zip_filename,
+                            mime="application/zip",
+                            use_container_width=True
+                        )
+                    
+                    # Limpiar archivos temporales
+                    for file in temp_files + [zip_filename]:
+                        if os.path.exists(file):
+                            os.remove(file)
+                    
+                    st.success(f"✅ {len(temp_files)} gráficos exportados exitosamente!")
+                    st.info("📁 Los gráficos se descargarán en alta resolución (PNG) comprimidos en un archivo ZIP.")
+                else:
+                    st.warning("⚠️ No hay gráficos disponibles para exportar.")
+                    
+        except Exception as e:
+            st.error(f"❌ Error al exportar gráficos: {str(e)}")
+    
+    if st.button("🖼️ Exportar Gráficos", use_container_width=True):
+        exportar_graficos_imagenes()
 
 # Tablas de datos
 st.markdown("---")
@@ -763,7 +726,8 @@ with tab1:
         st.dataframe(ot_master_filtrado[columnas_disponibles], use_container_width=True, hide_index=True)
         csv_ot = ot_master_filtrado.to_csv(index=False)
         st.download_button(label="📥 Descargar OT Master como CSV", data=csv_ot, file_name="ot_master_filtrado.csv", mime="text/csv")
-    else: st.info("No hay datos para mostrar en OT Master")
+    else: 
+        st.info("No hay datos para mostrar en OT Master")
 with tab2:
     st.subheader("Tabla Procesos")
     posibles_nombres = ['proceso', 'Proceso', 'PROCESO', 'proceso_nombre', 'Proceso_Nombre']
@@ -778,7 +742,8 @@ with tab2:
         st.dataframe(procesos_filtrados[columnas_disponibles_procesos], use_container_width=True, hide_index=True)
         csv_procesos = procesos_filtrados.to_csv(index=False)
         st.download_button(label="📥 Descargar Procesos como CSV", data=csv_procesos, file_name="procesos_filtrados.csv", mime="text/csv")
-    else: st.info("No hay datos para mostrar en Procesos")
+    else: 
+        st.info("No hay datos para mostrar en Procesos")
 
 # Footer
 st.markdown("---")
