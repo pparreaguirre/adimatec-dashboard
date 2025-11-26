@@ -13,6 +13,17 @@ import zipfile
 import os
 
 # =============================================
+# INICIALIZACIÓN DE VARIABLES GLOBALES PARA GRÁFICOS
+# =============================================
+fig_ots_vencidas = None
+fig_facturacion = None
+fig_reprocesos = None
+fig_desviaciones = None
+fig_pareto = None
+fig_clientes = None
+fig_estatus = None
+
+# =============================================
 # CONFIGURACIÓN STREAMLIT
 # =============================================
 st.set_page_config(
@@ -649,67 +660,86 @@ with col2:
     st.info("Descarga todos los gráficos como imágenes PNG en alta calidad")
     
     def exportar_graficos_imagenes():
-        """Exportar gráficos individuales como imágenes PNG"""
-        try:
-            with st.spinner("📸 Exportando gráficos como imágenes..."):
-                temp_files = []
+    """Exportar gráficos individuales como imágenes PNG"""
+    try:
+        with st.spinner("📸 Exportando gráficos como imágenes..."):
+            temp_files = []
+            
+            # Lista de gráficos a exportar - VERIFICACIÓN DIRECTA
+            graficos = {}
+            
+            # Gráfico 1: OTs Vencidas y Por Vencer
+            if 'fig_ots_vencidas' in globals() and fig_ots_vencidas is not None:
+                graficos["01_OTs_Vencidas_Por_Vencer.png"] = fig_ots_vencidas
+            
+            # Gráfico 2: Facturación
+            if 'fig_facturacion' in globals() and fig_facturacion is not None:
+                graficos["02_Facturacion.png"] = fig_facturacion
+            
+            # Gráfico 3: Desviaciones de Horas
+            if 'fig_desviaciones' in globals() and fig_desviaciones is not None:
+                graficos["03_Desviaciones_Horas.png"] = fig_desviaciones
+            
+            # Gráfico 4: Reprocesos
+            if 'fig_reprocesos' in globals() and fig_reprocesos is not None:
+                graficos["04_Reprocesos.png"] = fig_reprocesos
+            
+            # Gráfico 5: Pareto
+            if 'fig_pareto' in globals() and fig_pareto is not None:
+                graficos["05_Pareto_Desviaciones.png"] = fig_pareto
+            
+            # Gráfico 6: OTs por Cliente
+            if 'fig_clientes' in globals() and fig_clientes is not None:
+                graficos["06_OTs_por_Cliente.png"] = fig_clientes
+            
+            # Gráfico 7: OTs por Estatus
+            if 'fig_estatus' in globals() and fig_estatus is not None:
+                graficos["07_OTs_por_Estatus.png"] = fig_estatus
+            
+            # VERIFICAR SI HAY GRÁFICOS DISPONIBLES
+            if not graficos:
+                st.warning("⚠️ No se encontraron gráficos para exportar. Asegúrate de que los gráficos se hayan generado correctamente.")
+                return
+            
+            for filename, figura in graficos.items():
+                try:
+                    temp_path = f"temp_{filename}"
+                    figura.write_image(temp_path, width=1200, height=800, scale=2)
+                    temp_files.append(temp_path)
+                    st.success(f"✅ {filename} exportado correctamente")
+                except Exception as e:
+                    st.warning(f"❌ No se pudo exportar {filename}: {str(e)}")
+            
+            if temp_files:
+                # Crear ZIP
+                zip_filename = f"Graficos_Adimatec_{datetime.now().strftime('%Y%m%d_%H%M')}.zip"
+                with zipfile.ZipFile(zip_filename, 'w') as zipf:
+                    for file in temp_files:
+                        zipf.write(file, os.path.basename(file))
                 
-                # Lista de gráficos a exportar
-                graficos = {}
+                # Ofrecer descarga
+                with open(zip_filename, 'rb') as f:
+                    st.download_button(
+                        label="📦 Descargar Todos los Gráficos (ZIP)",
+                        data=f.read(),
+                        file_name=zip_filename,
+                        mime="application/zip",
+                        use_container_width=True,
+                        key="download_zip"
+                    )
                 
-                # Agregar gráficos condicionales
-                if 'fig_ots_vencidas' in locals() and fig_ots_vencidas is not None:
-                    graficos["01_OTs_Vencidas_Por_Vencer.png"] = fig_ots_vencidas
-                if 'fig_facturacion' in locals() and fig_facturacion is not None:
-                    graficos["02_Facturacion.png"] = fig_facturacion
-                if 'fig_desviaciones' in locals() and fig_desviaciones is not None:
-                    graficos["03_Desviaciones_Horas.png"] = fig_desviaciones
-                if 'fig_reprocesos' in locals() and fig_reprocesos is not None:
-                    graficos["04_Reprocesos.png"] = fig_reprocesos
-                if 'fig_pareto' in locals() and fig_pareto is not None:
-                    graficos["05_Pareto_Desviaciones.png"] = fig_pareto
-                if 'fig_clientes' in locals() and fig_clientes is not None:
-                    graficos["06_OTs_por_Cliente.png"] = fig_clientes
-                if 'fig_estatus' in locals() and fig_estatus is not None:
-                    graficos["07_OTs_por_Estatus.png"] = fig_estatus
+                # Limpiar archivos temporales
+                for file in temp_files + [zip_filename]:
+                    if os.path.exists(file):
+                        os.remove(file)
                 
-                for filename, figura in graficos.items():
-                    try:
-                        temp_path = f"temp_{filename}"
-                        figura.write_image(temp_path, width=1200, height=800, scale=2)
-                        temp_files.append(temp_path)
-                    except Exception as e:
-                        st.warning(f"No se pudo exportar {filename}")
-                
-                if temp_files:
-                    # Crear ZIP
-                    zip_filename = f"Graficos_Adimatec_{datetime.now().strftime('%Y%m%d_%H%M')}.zip"
-                    with zipfile.ZipFile(zip_filename, 'w') as zipf:
-                        for file in temp_files:
-                            zipf.write(file, os.path.basename(file))
+                st.success(f"✅ {len(temp_files)} gráficos exportados exitosamente!")
+                st.info("📁 Los gráficos se descargarán en alta resolución (PNG) comprimidos en un archivo ZIP.")
+            else:
+                st.warning("⚠️ No se pudieron exportar los gráficos. Verifica que kaleido esté instalado correctamente.")
                     
-                    # Ofrecer descarga
-                    with open(zip_filename, 'rb') as f:
-                        st.download_button(
-                            label="📦 Descargar Todos los Gráficos (ZIP)",
-                            data=f.read(),
-                            file_name=zip_filename,
-                            mime="application/zip",
-                            use_container_width=True
-                        )
-                    
-                    # Limpiar archivos temporales
-                    for file in temp_files + [zip_filename]:
-                        if os.path.exists(file):
-                            os.remove(file)
-                    
-                    st.success(f"✅ {len(temp_files)} gráficos exportados exitosamente!")
-                    st.info("📁 Los gráficos se descargarán en alta resolución (PNG) comprimidos en un archivo ZIP.")
-                else:
-                    st.warning("⚠️ No hay gráficos disponibles para exportar.")
-                    
-        except Exception as e:
-            st.error(f"❌ Error al exportar gráficos: {str(e)}")
+    except Exception as e:
+        st.error(f"❌ Error al exportar gráficos: {str(e)}")
     
     if st.button("🖼️ Exportar Gráficos", use_container_width=True):
         exportar_graficos_imagenes()
