@@ -598,158 +598,18 @@ with col3:
 # =============================================
 
 def generar_reporte_pdf():
-    """Generar un reporte PDF profesional y ejecutivo"""
-    try:
-        with st.spinner("📊 Generando reporte PDF ejecutivo..."):
-            
-            # Crear PDF profesional
-            pdf = FPDF()
-            pdf.set_auto_page_break(auto=True, margin=15)
-            
-            # Página 1: Portada
-            pdf.add_page()
-            pdf.set_font('Arial', 'B', 24)
-            pdf.cell(0, 40, 'REPORTE DE PRODUCCIÓN', 0, 1, 'C')
-            pdf.set_font('Arial', 'B', 16)
-            pdf.cell(0, 20, 'ADIMATEC S.A.', 0, 1, 'C')
-            pdf.set_font('Arial', '', 14)
-            pdf.cell(0, 10, f'Generado: {datetime.now().strftime("%d/%m/%Y %H:%M")}', 0, 1, 'C')
-            pdf.ln(20)
-            
-            # Página 2: Resumen Ejecutivo
-            pdf.add_page()
-            pdf.set_font('Arial', 'B', 16)
-            pdf.cell(0, 10, 'RESUMEN EJECUTIVO', 0, 1)
-            pdf.ln(5)
-            
-            pdf.set_font('Arial', '', 12)
-            texto_resumen = f"""
-            Este reporte presenta un análisis completo del desempeño de producción de Adimatec, 
-            incluyendo métricas clave, estado de órdenes de trabajo, eficiencia operativa y 
-            recomendaciones estratégicas.
-            
-            Período analizado: {fecha_inicio if fecha_inicio else 'Todo el histórico'} hasta {fecha_fin if fecha_fin else 'actual'}
-            Filtros aplicados: Cliente: {cliente_seleccionado} | Estatus: {estatus_seleccionado} | Empleado: {empleado_seleccionado}
-            """
-            pdf.multi_cell(0, 8, texto_resumen)
-            pdf.ln(10)
-            
-            # Métricas Principales en tabla
-            pdf.set_font('Arial', 'B', 14)
-            pdf.cell(0, 10, 'MÉTRICAS PRINCIPALES', 0, 1)
-            pdf.ln(5)
-            
-            metrics = [
-                ['Total OTs Analizadas:', f'{total_ots}'],
-                ['OTs Facturadas:', f'{ots_facturadas} ({porcentaje_facturado:.1f}%)'],
-                ['OTs en Proceso:', f'{ots_en_proceso}'],
-                ['OTs Vencidas:', f'{ots_vencidas}'],
-                ['OTs por Vencer:', f'{ots_por_vencer}'],
-                ['Reprocesos:', f'{total_reprocesos} ({porcentaje_reprocesos:.1f}%)'],
-                ['Horas Programadas:', f'{total_horas_programadas:.1f}h'],
-                ['Eficiencia Global:', f'{porcentaje_facturado:.1f}%']
-            ]
-            
-            pdf.set_font('Arial', '', 12)
-            for metric, value in metrics:
-                pdf.cell(95, 8, metric, 0, 0)
-                pdf.cell(0, 8, value, 0, 1)
-                pdf.ln(5)
-            
-            # Página 3: Análisis Detallado
-            pdf.add_page()
-            pdf.set_font('Arial', 'B', 16)
-            pdf.cell(0, 10, 'ANÁLISIS DETALLADO', 0, 1)
-            pdf.ln(5)
-            
-            # OTs Vencidas
-            if not ots_vencidas_df.empty:
-                pdf.set_font('Arial', 'B', 12)
-                pdf.cell(0, 8, 'OTs VENCIDAS CRÍTICAS:', 0, 1)
-                pdf.set_font('Arial', '', 10)
-                for idx, row in ots_vencidas_df.head(10).iterrows():
-                    pdf.cell(0, 6, f"OT {row['ot']} - {row['cliente']} - Vence: {row['fecha_entrega'].strftime('%d/%m/%Y') if pd.notna(row['fecha_entrega']) else 'N/A'}", 0, 1)
-                pdf.ln(5)
-            
-            # Desviaciones
-            if not ots_desviacion_negativa.empty:
-                pdf.set_font('Arial', 'B', 12)
-                pdf.cell(0, 8, 'PRINCIPALES DESVIACIONES NEGATIVAS:', 0, 1)
-                pdf.set_font('Arial', '', 10)
-                top_desviaciones = ots_desviacion_negativa.nlargest(5, 'diferencia_horas')
-                for idx, row in top_desviaciones.iterrows():
-                    pdf.cell(0, 6, f"OT {row['ot']} - Desviación: {row['diferencia_horas']:.1f}h", 0, 1)
-                pdf.ln(5)
-            
-            # Página 4: Recomendaciones
-            pdf.add_page()
-            pdf.set_font('Arial', 'B', 16)
-            pdf.cell(0, 10, 'RECOMENDACIONES Y PLAN DE ACCIÓN', 0, 1)
-            pdf.ln(5)
-            
-            recomendaciones = []
-            
-            if ots_vencidas > 0:
-                recomendaciones.append(f"• ATENDER URGENTEMENTE {ots_vencidas} OTs VENCIDAS - Revisar causas de retraso y asignar recursos adicionales")
-            
-            if ots_por_vencer > 0:
-                recomendaciones.append(f"• REVISAR PROACTIVAMENTE {ots_por_vencer} OTs POR VENCER - Prevenir nuevos retrasos en los próximos 7 días")
-            
-            if porcentaje_reprocesos > 5:
-                recomendaciones.append(f"• INVESTIGAR CAUSAS DE REPROCESOS ({porcentaje_reprocesos:.1f}%) - Analizar procesos con mayor tasa de garantías")
-            
-            if porcentaje_facturado < 80:
-                recomendaciones.append(f"• OPTIMIZAR PROCESO DE FACTURACIÓN ({porcentaje_facturado:.1f}%) - Reducir tiempo entre terminación y facturación")
-            
-            if not ots_desviacion_negativa.empty:
-                recomendaciones.append(f"• ANALIZAR {len(ots_desviacion_negativa)} OTs CON DESVIACIONES - Identificar patrones en estimación vs ejecución")
-            
-            if not recomendaciones:
-                recomendaciones.append("• MANTENER BUEN DESEMPEÑO - Continuar con los procesos actuales")
-            
-            pdf.set_font('Arial', '', 12)
-            for rec in recomendaciones:
-                pdf.multi_cell(0, 8, rec)
-                pdf.ln(3)
-            
-            pdf.ln(10)
-            pdf.set_font('Arial', 'I', 10)
-            pdf.cell(0, 8, f'Próxima revisión programada: {(datetime.now() + timedelta(days=7)).strftime("%d/%m/%Y")}', 0, 1)
-            pdf.cell(0, 8, 'Reporte generado automáticamente por Dashboard de Producción Adimatec', 0, 1)
-            
-            # Guardar PDF
-            filename = f"Reporte_Produccion_Adimatec_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
-            pdf.output(filename)
-            
-            # Ofrecer descarga
-            with open(filename, 'rb') as f:
-                pdf_data = f.read()
-            
-            st.download_button(
-                label="📥 Descargar Reporte PDF Ejecutivo",
-                data=pdf_data,
-                file_name=filename,
-                mime="application/pdf",
-                use_container_width=True
-            )
-            
-            # Limpiar archivo temporal
-            if os.path.exists(filename):
-                os.remove(filename)
-            
-            st.success("🎉 ¡Reporte PDF ejecutivo generado exitosamente!")
-            st.info("""
-            **El reporte incluye:**
-            • Portada ejecutiva
-            • Resumen ejecutivo y métricas clave  
-            • Análisis detallado de OTs críticas
-            • Plan de acción con recomendaciones específicas
-            • Formato profesional listo para presentación
-            """)
-            
-    except Exception as e:
-        st.error(f"❌ Error al generar PDF: {str(e)}")
-        st.info("💡 **Solución:** Verifica que fpdf2 esté instalado correctamente")
+    st.error("PDF no disponible temporalmente")
+    st.info("""
+    **Para habilitar PDF, agrega a requirements.txt:**
+    ```txt
+    fpdf2==2.7.4
+    ```
+    
+    **Alternativas inmediatas:**
+    - 📊 **Exportar Excel** - Todos los datos organizados
+    - 🖼️ **Exportar Gráficos** - Imágenes en alta calidad
+    - 📋 **Copiar tablas** - Directamente del dashboard
+    """)
 
 def exportar_a_excel():
     """Exportar datos completos a Excel"""
