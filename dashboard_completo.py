@@ -433,6 +433,10 @@ else:
 st.markdown("---")
 st.header("📈 Análisis de Pareto - Desviaciones Negativas")
 
+# Inicializar variables para evitar errores de referencia
+ots_80_percent = pd.DataFrame()
+fig_pareto = None
+
 if not ots_desviacion_negativa.empty:
     # Preparar datos para Pareto
     pareto_data = ots_desviacion_negativa[['ot', 'diferencia_horas']].copy()
@@ -498,7 +502,7 @@ if not ots_desviacion_negativa.empty:
     with col3:
         st.metric("Horas representadas", f"{ots_80_percent['diferencia_horas'].sum():.1f}h")
     
-    # CORREGIDO: Tabla de OTs críticas con verificación de columnas
+    # Tabla de OTs críticas con verificación de columnas
     st.subheader("🎯 OTs Críticas (Principio 80/20)")
     
     # Obtener las OTs críticas del DataFrame original
@@ -620,13 +624,62 @@ def generar_powerpoint_completo():
             p.text = f"• OTs Facturadas: {ots_facturadas} ({porcentaje_facturado:.1f}%)"
             p = tf.add_paragraph()
             p.text = f"• OTs con Desviaciones Negativas: {len(ots_desviacion_negativa)}"
+            
+            # Calcular OTs críticas de manera segura
+            ots_criticas_count = 0
+            if not ots_desviacion_negativa.empty:
+                try:
+                    pareto_data_temp = ots_desviacion_negativa[['ot', 'diferencia_horas']].copy()
+                    pareto_data_temp = pareto_data_temp.sort_values('diferencia_horas', ascending=False)
+                    pareto_data_temp['porcentaje_acumulado'] = (pareto_data_temp['diferencia_horas'].cumsum() / pareto_data_temp['diferencia_horas'].sum()) * 100
+                    ots_80_percent_temp = pareto_data_temp[pareto_data_temp['porcentaje_acumulado'] <= 80]
+                    ots_criticas_count = len(ots_80_percent_temp)
+                except:
+                    ots_criticas_count = 0
+            
             p = tf.add_paragraph()
-ots_criticas_count = len(ots_80_percent) if not ots_desviacion_negativa.empty and 'ots_80_percent' in locals() else 0
-p.text = f"• OTs Críticas (80/20): {ots_criticas_count}"
+            p.text = f"• OTs Críticas (80/20): {ots_criticas_count}"
             
-            # Slides adicionales para los nuevos análisis...
-            # (El resto del código de PowerPoint permanece igual)
+            # El resto del código de PowerPoint permanece igual...
+            # (Slides adicionales para gráficos)
             
+            # Slide 3: OTs Vencidas y Por Vencer
+            if fig_ots_vencidas is not None:
+                slide = prs.slides.add_slide(prs.slide_layouts[5])
+                title_shape = slide.shapes.add_textbox(Inches(0.5), Inches(0.3), Inches(9), Inches(0.8))
+                title_frame = title_shape.text_frame
+                title_frame.text = "ANÁLISIS DE OTs VENCIDAS Y POR VENCER"
+                
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmpfile:
+                    fig_ots_vencidas.write_image(tmpfile.name, width=1000, height=600, scale=2)
+                    slide.shapes.add_picture(tmpfile.name, Inches(0.5), Inches(1.2), width=Inches(9))
+                    os.unlink(tmpfile.name)
+            
+            # Slide 4: Facturación
+            if fig_facturacion is not None:
+                slide = prs.slides.add_slide(prs.slide_layouts[5])
+                title_shape = slide.shapes.add_textbox(Inches(0.5), Inches(0.3), Inches(9), Inches(0.8))
+                title_frame = title_shape.text_frame
+                title_frame.text = "ANÁLISIS DE FACTURACIÓN"
+                
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmpfile:
+                    fig_facturacion.write_image(tmpfile.name, width=800, height=600, scale=2)
+                    slide.shapes.add_picture(tmpfile.name, Inches(1), Inches(1.2), width=Inches(8))
+                    os.unlink(tmpfile.name)
+            
+            # Slide 5: Análisis de Pareto (si existe)
+            if fig_pareto is not None:
+                slide = prs.slides.add_slide(prs.slide_layouts[5])
+                title_shape = slide.shapes.add_textbox(Inches(0.5), Inches(0.3), Inches(9), Inches(0.8))
+                title_frame = title_shape.text_frame
+                title_frame.text = "ANÁLISIS DE PARETO - DESVIACIONES"
+                
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmpfile:
+                    fig_pareto.write_image(tmpfile.name, width=1000, height=600, scale=2)
+                    slide.shapes.add_picture(tmpfile.name, Inches(0.5), Inches(1.2), width=Inches(9))
+                    os.unlink(tmpfile.name)
+            
+            # Guardar presentación
             filename = f"Reporte_Produccion_Adimatec_{datetime.now().strftime('%Y%m%d_%H%M')}.pptx"
             prs.save(filename)
             
