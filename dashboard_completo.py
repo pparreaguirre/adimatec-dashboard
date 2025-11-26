@@ -8,6 +8,12 @@ import numpy as np
 import requests
 from PIL import Image
 import io
+import tempfile
+import zipfile
+import os
+import base64
+from fpdf import FPDF
+import matplotlib.pyplot as plt
 
 # =============================================
 # INICIALIZACIÓN DE VARIABLES GLOBALES
@@ -573,158 +579,333 @@ with col2:
     if total_ots > 0: st.info(f"Eficiencia de facturación: {porcentaje_facturado:.1f}%")
     else: st.info("No hay OTs para mostrar el resumen de facturación")
 
-# NUEVA SECCIÓN: GENERACIÓN DE POWERPOINT (VERSIÓN SEGURA)
-st.markdown("---")
-st.header("📊 Exportar Reportes")
+# =============================================
+# SECCIÓN DE EXPORTACIÓN PROFESIONAL (PDF + EXCEL + GRÁFICOS)
+# =============================================
 
-col1, col2 = st.columns(2)
+st.markdown("---")
+st.header("📊 Generar Reportes Ejecutivos")
+
+col1, col2, col3 = st.columns(3)
 
 with col1:
-    st.subheader("🎯 Presentación PowerPoint")
+    st.subheader("📄 Reporte PDF Ejecutivo")
+    st.info("Genera un reporte ejecutivo completo en formato PDF listo para presentar")
     
-    if not PPTX_AVAILABLE:
-        st.error("""
-        **PowerPoint no disponible**
-        Agrega a tu `requirements.txt`:
-        ```txt
-        python-pptx==0.6.21
-        ```
-        """)
-    else:
-        st.info("Genera un reporte ejecutivo básico en formato PowerPoint")
-        if st.button("🚀 Generar PowerPoint Básico", type="primary", use_container_width=True):
-            generar_powerpoint_completo()
+    if st.button("🚀 Generar Reporte PDF", type="primary", use_container_width=True):
+        generar_reporte_pdf()
 
 with col2:
-    st.subheader("📸 Exportar Gráficos")
-    st.info("Descarga todos los gráficos como imágenes PNG")
+    st.subheader("📊 Exportar Datos")
+    st.info("Descarga los datos completos en formato Excel para análisis detallado")
     
-    if st.button("🖼️ Exportar Gráficos como Imágenes", use_container_width=True):
+    if st.button("📈 Generar Reporte Excel", use_container_width=True):
+        exportar_a_excel()
+
+with col3:
+    st.subheader("📸 Exportar Gráficos")
+    st.info("Descarga todos los gráficos como imágenes PNG en alta calidad")
+    
+    if st.button("🖼️ Exportar Gráficos", use_container_width=True):
         exportar_graficos_imagenes()
 
-# FUNCIÓN POWERPOINT - VERSIÓN SIMPLIFICADA Y ROBUSTA
-def generar_powerpoint_completo():
-    """Generar una presentación PowerPoint básica pero funcional"""
-    
-    # Verificación robusta de disponibilidad
-    if not PPTX_AVAILABLE:
-        st.error("""
-        ❌ **PowerPoint no disponible** 
-        
-        Para habilitar esta función en Streamlit Cloud:
-        1. Verifica que `python-pptx==0.6.21` esté en requirements.txt
-        2. Asegúrate de que el despliegue se haya realizado después de este cambio
-        3. Si persiste, prueba con una versión diferente: `python-pptx==0.6.18`
-        """)
-        return
-    
+# =============================================
+# FUNCIONES DE EXPORTACIÓN
+# =============================================
+
+def generar_reporte_pdf():
+    """Generar un reporte PDF profesional y ejecutivo"""
     try:
-        with st.spinner("📊 Creando presentación PowerPoint..."):
-            # Crear presentación muy básica
-            prs = Presentation()
+        with st.spinner("📊 Generando reporte PDF ejecutivo..."):
             
-            # Slide 1: Portada simple
-            slide = prs.slides.add_slide(prs.slide_layouts[0])
-            slide.shapes.title.text = "Reporte de Producción"
-            slide.placeholders[1].text = f"Adimatec\n{datetime.now().strftime('%d/%m/%Y')}"
+            # Crear PDF profesional
+            pdf = FPDF()
+            pdf.set_auto_page_break(auto=True, margin=15)
             
-            # Slide 2: Métricas principales
-            slide = prs.slides.add_slide(prs.slide_layouts[1])
-            slide.shapes.title.text = "Métricas Principales"
-            content = slide.placeholders[1].text_frame
-            content.text = f"""
-            Total OTs: {total_ots}
-            OTs Facturadas: {ots_facturadas}
-            OTs Vencidas: {ots_vencidas}
-            OTs por Vencer: {ots_por_vencer}
-            % Facturación: {porcentaje_facturado:.1f}%
-            % Reprocesos: {porcentaje_reprocesos:.1f}%
+            # Página 1: Portada
+            pdf.add_page()
+            pdf.set_font('Arial', 'B', 24)
+            pdf.cell(0, 40, 'REPORTE DE PRODUCCIÓN', 0, 1, 'C')
+            pdf.set_font('Arial', 'B', 16)
+            pdf.cell(0, 20, 'ADIMATEC S.A.', 0, 1, 'C')
+            pdf.set_font('Arial', '', 14)
+            pdf.cell(0, 10, f'Generado: {datetime.now().strftime("%d/%m/%Y %H:%M")}', 0, 1, 'C')
+            pdf.ln(20)
+            
+            # Página 2: Resumen Ejecutivo
+            pdf.add_page()
+            pdf.set_font('Arial', 'B', 16)
+            pdf.cell(0, 10, 'RESUMEN EJECUTIVO', 0, 1)
+            pdf.ln(5)
+            
+            pdf.set_font('Arial', '', 12)
+            texto_resumen = f"""
+            Este reporte presenta un análisis completo del desempeño de producción de Adimatec, 
+            incluyendo métricas clave, estado de órdenes de trabajo, eficiencia operativa y 
+            recomendaciones estratégicas.
+            
+            Período analizado: {fecha_inicio if fecha_inicio else 'Todo el histórico'} hasta {fecha_fin if fecha_fin else 'actual'}
+            Filtros aplicados: Cliente: {cliente_seleccionado} | Estatus: {estatus_seleccionado} | Empleado: {empleado_seleccionado}
             """
+            pdf.multi_cell(0, 8, texto_resumen)
+            pdf.ln(10)
             
-            # Slide 3: Recomendaciones
-            slide = prs.slides.add_slide(prs.slide_layouts[1])
-            slide.shapes.title.text = "Recomendaciones"
-            content = slide.placeholders[1].text_frame
-            content.text = "Análisis generado automáticamente\nDashboard de Producción Adimatec"
+            # Métricas Principales en tabla
+            pdf.set_font('Arial', 'B', 14)
+            pdf.cell(0, 10, 'MÉTRICAS PRINCIPALES', 0, 1)
+            pdf.ln(5)
             
-            # Guardar archivo
-            filename = f"reporte_adimatec_{datetime.now().strftime('%Y%m%d_%H%M')}.pptx"
-            prs.save(filename)
+            metrics = [
+                ['Total OTs Analizadas:', f'{total_ots}'],
+                ['OTs Facturadas:', f'{ots_facturadas} ({porcentaje_facturado:.1f}%)'],
+                ['OTs en Proceso:', f'{ots_en_proceso}'],
+                ['OTs Vencidas:', f'{ots_vencidas}'],
+                ['OTs por Vencer:', f'{ots_por_vencer}'],
+                ['Reprocesos:', f'{total_reprocesos} ({porcentaje_reprocesos:.1f}%)'],
+                ['Horas Programadas:', f'{total_horas_programadas:.1f}h'],
+                ['Eficiencia Global:', f'{porcentaje_facturado:.1f}%']
+            ]
+            
+            pdf.set_font('Arial', '', 12)
+            for metric, value in metrics:
+                pdf.cell(95, 8, metric, 0, 0)
+                pdf.cell(0, 8, value, 0, 1)
+                pdf.ln(5)
+            
+            # Página 3: Análisis Detallado
+            pdf.add_page()
+            pdf.set_font('Arial', 'B', 16)
+            pdf.cell(0, 10, 'ANÁLISIS DETALLADO', 0, 1)
+            pdf.ln(5)
+            
+            # OTs Vencidas
+            if not ots_vencidas_df.empty:
+                pdf.set_font('Arial', 'B', 12)
+                pdf.cell(0, 8, 'OTs VENCIDAS CRÍTICAS:', 0, 1)
+                pdf.set_font('Arial', '', 10)
+                for idx, row in ots_vencidas_df.head(10).iterrows():
+                    pdf.cell(0, 6, f"OT {row['ot']} - {row['cliente']} - Vence: {row['fecha_entrega'].strftime('%d/%m/%Y') if pd.notna(row['fecha_entrega']) else 'N/A'}", 0, 1)
+                pdf.ln(5)
+            
+            # Desviaciones
+            if not ots_desviacion_negativa.empty:
+                pdf.set_font('Arial', 'B', 12)
+                pdf.cell(0, 8, 'PRINCIPALES DESVIACIONES NEGATIVAS:', 0, 1)
+                pdf.set_font('Arial', '', 10)
+                top_desviaciones = ots_desviacion_negativa.nlargest(5, 'diferencia_horas')
+                for idx, row in top_desviaciones.iterrows():
+                    pdf.cell(0, 6, f"OT {row['ot']} - Desviación: {row['diferencia_horas']:.1f}h", 0, 1)
+                pdf.ln(5)
+            
+            # Página 4: Recomendaciones
+            pdf.add_page()
+            pdf.set_font('Arial', 'B', 16)
+            pdf.cell(0, 10, 'RECOMENDACIONES Y PLAN DE ACCIÓN', 0, 1)
+            pdf.ln(5)
+            
+            recomendaciones = []
+            
+            if ots_vencidas > 0:
+                recomendaciones.append(f"• ATENDER URGENTEMENTE {ots_vencidas} OTs VENCIDAS - Revisar causas de retraso y asignar recursos adicionales")
+            
+            if ots_por_vencer > 0:
+                recomendaciones.append(f"• REVISAR PROACTIVAMENTE {ots_por_vencer} OTs POR VENCER - Prevenir nuevos retrasos en los próximos 7 días")
+            
+            if porcentaje_reprocesos > 5:
+                recomendaciones.append(f"• INVESTIGAR CAUSAS DE REPROCESOS ({porcentaje_reprocesos:.1f}%) - Analizar procesos con mayor tasa de garantías")
+            
+            if porcentaje_facturado < 80:
+                recomendaciones.append(f"• OPTIMIZAR PROCESO DE FACTURACIÓN ({porcentaje_facturado:.1f}%) - Reducir tiempo entre terminación y facturación")
+            
+            if not ots_desviacion_negativa.empty:
+                recomendaciones.append(f"• ANALIZAR {len(ots_desviacion_negativa)} OTs CON DESVIACIONES - Identificar patrones en estimación vs ejecución")
+            
+            if not recomendaciones:
+                recomendaciones.append("• MANTENER BUEN DESEMPEÑO - Continuar con los procesos actuales")
+            
+            pdf.set_font('Arial', '', 12)
+            for rec in recomendaciones:
+                pdf.multi_cell(0, 8, rec)
+                pdf.ln(3)
+            
+            pdf.ln(10)
+            pdf.set_font('Arial', 'I', 10)
+            pdf.cell(0, 8, f'Próxima revisión programada: {(datetime.now() + timedelta(days=7)).strftime("%d/%m/%Y")}', 0, 1)
+            pdf.cell(0, 8, 'Reporte generado automáticamente por Dashboard de Producción Adimatec', 0, 1)
+            
+            # Guardar PDF
+            filename = f"Reporte_Produccion_Adimatec_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
+            pdf.output(filename)
             
             # Ofrecer descarga
             with open(filename, 'rb') as f:
-                st.download_button(
-                    label="📥 Descargar PowerPoint",
-                    data=f.read(),
-                    file_name=filename,
-                    mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
-                )
+                pdf_data = f.read()
             
-            st.success("✅ Presentación PowerPoint generada exitosamente!")
+            st.download_button(
+                label="📥 Descargar Reporte PDF Ejecutivo",
+                data=pdf_data,
+                file_name=filename,
+                mime="application/pdf",
+                use_container_width=True
+            )
+            
+            # Limpiar archivo temporal
+            if os.path.exists(filename):
+                os.remove(filename)
+            
+            st.success("🎉 ¡Reporte PDF ejecutivo generado exitosamente!")
+            st.info("""
+            **El reporte incluye:**
+            • Portada ejecutiva
+            • Resumen ejecutivo y métricas clave  
+            • Análisis detallado de OTs críticas
+            • Plan de acción con recomendaciones específicas
+            • Formato profesional listo para presentación
+            """)
             
     except Exception as e:
-        st.error(f"❌ Error al crear PowerPoint: {str(e)}")
-        st.info("""
-        **Posibles soluciones:**
-        1. Verifica que `python-pptx` esté en requirements.txt
-        2. Prueba con una versión anterior: `python-pptx==0.6.18`
-        3. Contacta con soporte de Streamlit Cloud
-        """)
+        st.error(f"❌ Error al generar PDF: {str(e)}")
+        st.info("💡 **Solución:** Verifica que fpdf2 esté instalado correctamente")
+
+def exportar_a_excel():
+    """Exportar datos completos a Excel"""
+    try:
+        with st.spinner("📊 Generando archivo Excel..."):
+            # Crear un escritor de Excel
+            with pd.ExcelWriter('reporte_adimatec.xlsx', engine='openpyxl') as writer:
+                # Hoja 1: OT Master
+                ot_master_filtrado.to_excel(writer, sheet_name='OT_Master', index=False)
+                
+                # Hoja 2: Procesos
+                if not procesos_filtrados.empty:
+                    procesos_filtrados.to_excel(writer, sheet_name='Procesos', index=False)
+                
+                # Hoja 3: Resumen Ejecutivo
+                resumen_data = {
+                    'Métrica': [
+                        'Total OTs', 
+                        'OTs Facturadas', 
+                        'OTs en Proceso', 
+                        'OTs Vencidas', 
+                        'OTs por Vencer',
+                        '% Facturación',
+                        '% Reprocesos',
+                        'Horas Programadas Totales',
+                        'Desviaciones Positivas',
+                        'Desviaciones Negativas'
+                    ],
+                    'Valor': [
+                        total_ots,
+                        ots_facturadas,
+                        ots_en_proceso,
+                        ots_vencidas,
+                        ots_por_vencer,
+                        f"{porcentaje_facturado:.1f}%",
+                        f"{porcentaje_reprocesos:.1f}%",
+                        f"{total_horas_programadas:.1f}h",
+                        f"{horas_desviacion_positiva:.1f}h",
+                        f"{horas_desviacion_negativa:.1f}h"
+                    ]
+                }
+                pd.DataFrame(resumen_data).to_excel(writer, sheet_name='Resumen', index=False)
+                
+                # Hoja 4: OTs Críticas
+                if not ots_desviacion_negativa.empty:
+                    columnas_criticas = ['ot', 'cliente', 'horas_estimadas_ot', 'horas_reales_ot', 'diferencia_horas']
+                    columnas_disponibles = [col for col in columnas_criticas if col in ots_desviacion_negativa.columns]
+                    if columnas_disponibles:
+                        ots_desviacion_negativa[columnas_disponibles].to_excel(writer, sheet_name='OTs_Criticas', index=False)
+            
+            # Ofrecer descarga
+            with open('reporte_adimatec.xlsx', 'rb') as f:
+                st.download_button(
+                    label="📈 Descargar Excel Completo",
+                    data=f.read(),
+                    file_name=f"Reporte_Adimatec_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True
+                )
+            
+            # Limpiar archivo temporal
+            if os.path.exists('reporte_adimatec.xlsx'):
+                os.remove('reporte_adimatec.xlsx')
+                
+            st.success("✅ Archivo Excel generado exitosamente!")
+            
+    except Exception as e:
+        st.error(f"Error al generar Excel: {str(e)}")
 
 def exportar_graficos_imagenes():
     """Exportar gráficos individuales como imágenes PNG"""
     try:
-        with st.spinner("📸 Exportando gráficos..."):
+        with st.spinner("📸 Exportando gráficos como imágenes..."):
             temp_files = []
             
-            # Solo exportar gráficos que existen
+            # Lista de gráficos a exportar
             graficos = {
-                "OTs_Vencidas.png": fig_ots_vencidas,
-                "Facturacion.png": fig_facturacion, 
-                "Desviaciones_Horas.png": fig_desviaciones,
+                "01_OTs_Vencidas_Por_Vencer.png": fig_ots_vencidas,
+                "02_Facturacion.png": fig_facturacion,
+                "03_Desviaciones_Horas.png": fig_desviaciones,
             }
             
             # Agregar gráficos condicionales
             if fig_reprocesos is not None:
-                graficos["Reprocesos.png"] = fig_reprocesos
+                graficos["04_Reprocesos.png"] = fig_reprocesos
             if fig_pareto is not None:
-                graficos["Pareto.png"] = fig_pareto
+                graficos["05_Pareto_Desviaciones.png"] = fig_pareto
+            if 'fig_clientes' in locals() and fig_clientes is not None:
+                graficos["06_OTs_por_Cliente.png"] = fig_clientes
+            if 'fig_estatus' in locals() and fig_estatus is not None:
+                graficos["07_OTs_por_Estatus.png"] = fig_estatus
             
             for filename, figura in graficos.items():
                 if figura is not None:
                     try:
                         temp_path = f"temp_{filename}"
-                        figura.write_image(temp_path, width=800, height=600)
+                        figura.write_image(temp_path, width=1200, height=800, scale=2)
                         temp_files.append(temp_path)
                     except Exception as e:
                         st.warning(f"No se pudo exportar {filename}")
             
             if temp_files:
-                zip_filename = f"graficos_adimatec_{datetime.now().strftime('%Y%m%d_%H%M')}.zip"
+                # Crear ZIP
+                zip_filename = f"Graficos_Adimatec_{datetime.now().strftime('%Y%m%d_%H%M')}.zip"
                 with zipfile.ZipFile(zip_filename, 'w') as zipf:
                     for file in temp_files:
                         zipf.write(file, os.path.basename(file))
                 
+                # Ofrecer descarga
                 with open(zip_filename, 'rb') as f:
                     st.download_button(
-                        label="📦 Descargar Gráficos (ZIP)",
+                        label="📦 Descargar Todos los Gráficos (ZIP)",
                         data=f.read(),
                         file_name=zip_filename,
                         mime="application/zip",
                         use_container_width=True
                     )
                 
-                # Limpiar
+                # Limpiar archivos temporales
                 for file in temp_files + [zip_filename]:
                     if os.path.exists(file):
                         os.remove(file)
                 
-                st.success(f"✅ {len(temp_files)} gráficos exportados!")
+                st.success(f"✅ {len(temp_files)} gráficos exportados exitosamente!")
+                st.info("📁 Los gráficos se descargarán en alta resolución (PNG) comprimidos en un archivo ZIP.")
             else:
-                st.warning("No hay gráficos para exportar")
+                st.warning("⚠️ No hay gráficos disponibles para exportar.")
                 
     except Exception as e:
-        st.error(f"Error al exportar gráficos: {str(e)}")
+        st.error(f"❌ Error al exportar gráficos: {str(e)}")
+
+# Mensaje informativo
+st.markdown("---")
+st.info("""
+💡 **Exportación Profesional Completa:**
+- **📄 PDF Ejecutivo**: Reporte formal listo para presentación a dirección
+- **📊 Excel Completo**: Todos los datos para análisis detallado  
+- **🖼️ Gráficos HD**: Imágenes profesionales para presentaciones
+- **🎯 Formato Corporativo**: Diseñado para comunicación ejecutiva
+""")
 
 # Tablas de datos
 st.markdown("---")
