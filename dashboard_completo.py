@@ -9,6 +9,16 @@ import requests
 from PIL import Image
 import io
 
+# Inicializar variables globales para evitar errores
+ots_en_proceso = 0
+ots_vencidas = 0
+ots_por_vencer = 0
+fig_ots_vencidas = None
+fig_facturacion = None
+fig_reprocesos = None
+fig_desviaciones = None
+fig_pareto = None
+
 # Nuevos imports para PowerPoint
 try:
     from pptx import Presentation
@@ -260,17 +270,18 @@ else:
 st.header("📊 Métricas Principales")
 col1, col2, col3, col4, col5, col6 = st.columns(6)
 with col1: st.metric("Total OTs", total_ots)
+# En la sección de métricas principales, cambia:
 with col2: 
     ots_en_proceso = len(ot_master_filtrado[ot_master_filtrado['estatus'] == 'EN PROCESO'])
     st.metric("OTs en Proceso", ots_en_proceso)
-with col3: st.metric("OTs Facturadas", ots_facturadas)
+
 with col4: 
     ots_vencidas = len(ot_master_filtrado[(ot_master_filtrado['estado_entrega'] == 'Vencida') & (~ot_master_filtrado['estatus'].isin(estados_no_vencidos))])
     st.metric("OTs Vencidas", ots_vencidas, delta=-ots_vencidas, delta_color="inverse")
+
 with col5: 
     ots_por_vencer = len(ot_master_filtrado[(ot_master_filtrado['estado_entrega'] == 'Por vencer') & (~ot_master_filtrado['estatus'].isin(estados_no_vencidos))])
     st.metric("OTs por Vencer", ots_por_vencer, delta=ots_por_vencer, delta_color="off")
-with col6: st.metric("% Facturación", f"{porcentaje_facturado:.1f}%")
 
 st.markdown("---")
 
@@ -589,113 +600,207 @@ with col2:
     if st.button("🖼️ Exportar Gráficos como Imágenes", use_container_width=True):
         exportar_graficos_imagenes()
 
-# FUNCIONES PARA POWERPOINT (MEJORADAS CON MANEJO DE ERRORES)
+# FUNCIONES PARA POWERPOINT (VERSIÓN CORREGIDA Y ROBUSTA)
 def generar_powerpoint_completo():
     """Generar una presentación PowerPoint profesional con todos los gráficos y métricas"""
     if not PPTX_AVAILABLE:
-        st.error("La funcionalidad de PowerPoint no está disponible. Instala python-pptx.")
+        st.error("❌ La funcionalidad de PowerPoint no está disponible. Instala python-pptx.")
         return
         
     try:
         with st.spinner("🔄 Generando reporte ejecutivo en PowerPoint..."):
+            # Crear presentación
             prs = Presentation()
             
             # Slide 1: Portada
-            slide = prs.slides.add_slide(prs.slide_layouts[0])
-            title = slide.shapes.title
-            subtitle = slide.placeholders[1]
-            
-            title.text = "REPORTE DE PRODUCCIÓN"
-            subtitle.text = f"Adimatec S.A.\n{datetime.now().strftime('%d de %B de %Y')}"
+            try:
+                slide = prs.slides.add_slide(prs.slide_layouts[0])
+                title = slide.shapes.title
+                subtitle = slide.placeholders[1]
+                
+                title.text = "REPORTE DE PRODUCCIÓN"
+                subtitle.text = f"Adimatec S.A.\n{datetime.now().strftime('%d/%m/%Y')}"
+            except Exception as e:
+                st.warning(f"⚠️ Error en slide de portada: {str(e)}")
             
             # Slide 2: Resumen Ejecutivo
-            slide = prs.slides.add_slide(prs.slide_layouts[1])
-            title = slide.shapes.title
-            content = slide.placeholders[1]
-            
-            title.text = "Resumen Ejecutivo"
-            tf = content.text_frame
-            tf.text = f"Período analizado: {fecha_inicio if fecha_inicio else 'Inicio'} - {fecha_fin if fecha_fin else 'Actual'}"
-            
-            # Agregar métricas
-            p = tf.add_paragraph()
-            p.text = f"• Total de OTs: {total_ots}"
-            p = tf.add_paragraph()
-            p.text = f"• OTs Facturadas: {ots_facturadas} ({porcentaje_facturado:.1f}%)"
-            p = tf.add_paragraph()
-            p.text = f"• OTs con Desviaciones Negativas: {len(ots_desviacion_negativa)}"
-            
-            # Calcular OTs críticas de manera segura
-            ots_criticas_count = 0
-            if not ots_desviacion_negativa.empty:
-                try:
-                    pareto_data_temp = ots_desviacion_negativa[['ot', 'diferencia_horas']].copy()
-                    pareto_data_temp = pareto_data_temp.sort_values('diferencia_horas', ascending=False)
-                    pareto_data_temp['porcentaje_acumulado'] = (pareto_data_temp['diferencia_horas'].cumsum() / pareto_data_temp['diferencia_horas'].sum()) * 100
-                    ots_80_percent_temp = pareto_data_temp[pareto_data_temp['porcentaje_acumulado'] <= 80]
-                    ots_criticas_count = len(ots_80_percent_temp)
-                except:
-                    ots_criticas_count = 0
-            
-            p = tf.add_paragraph()
-            p.text = f"• OTs Críticas (80/20): {ots_criticas_count}"
-            
-            # El resto del código de PowerPoint permanece igual...
-            # (Slides adicionales para gráficos)
+            try:
+                slide = prs.slides.add_slide(prs.slide_layouts[1])
+                title = slide.shapes.title
+                content = slide.placeholders[1]
+                
+                title.text = "Resumen Ejecutivo"
+                tf = content.text_frame
+                tf.text = "Métricas Principales:"
+                
+                # Agregar métricas de manera segura
+                metrics = [
+                    f"• Total de OTs: {total_ots}",
+                    f"• OTs Facturadas: {ots_facturadas} ({porcentaje_facturado:.1f}%)",
+                    f"• OTs en Proceso: {ots_en_proceso}",
+                    f"• OTs Vencidas: {ots_vencidas}",
+                    f"• OTs por Vencer: {ots_por_vencer}",
+                    f"• Reprocesos: {total_reprocesos} ({porcentaje_reprocesos:.1f}%)"
+                ]
+                
+                for metric in metrics:
+                    p = tf.add_paragraph()
+                    p.text = metric
+                    
+            except Exception as e:
+                st.warning(f"⚠️ Error en slide de resumen: {str(e)}")
             
             # Slide 3: OTs Vencidas y Por Vencer
             if fig_ots_vencidas is not None:
-                slide = prs.slides.add_slide(prs.slide_layouts[5])
-                title_shape = slide.shapes.add_textbox(Inches(0.5), Inches(0.3), Inches(9), Inches(0.8))
-                title_frame = title_shape.text_frame
-                title_frame.text = "ANÁLISIS DE OTs VENCIDAS Y POR VENCER"
-                
-                with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmpfile:
-                    fig_ots_vencidas.write_image(tmpfile.name, width=1000, height=600, scale=2)
-                    slide.shapes.add_picture(tmpfile.name, Inches(0.5), Inches(1.2), width=Inches(9))
-                    os.unlink(tmpfile.name)
+                try:
+                    slide = prs.slides.add_slide(prs.slide_layouts[5])  # Layout en blanco
+                    title_shape = slide.shapes.add_textbox(Inches(0.5), Inches(0.3), Inches(9), Inches(0.8))
+                    title_frame = title_shape.text_frame
+                    title_frame.text = "OTs VENCIDAS Y POR VENCER"
+                    
+                    # Guardar gráfico temporalmente
+                    with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmpfile:
+                        fig_ots_vencidas.write_image(tmpfile.name, width=1000, height=600, scale=2)
+                        slide.shapes.add_picture(tmpfile.name, Inches(0.5), Inches(1.2), width=Inches(9))
+                        os.unlink(tmpfile.name)  # Eliminar archivo temporal
+                        
+                except Exception as e:
+                    st.warning(f"⚠️ Error en slide de OTs vencidas: {str(e)}")
             
             # Slide 4: Facturación
             if fig_facturacion is not None:
-                slide = prs.slides.add_slide(prs.slide_layouts[5])
-                title_shape = slide.shapes.add_textbox(Inches(0.5), Inches(0.3), Inches(9), Inches(0.8))
-                title_frame = title_shape.text_frame
-                title_frame.text = "ANÁLISIS DE FACTURACIÓN"
-                
-                with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmpfile:
-                    fig_facturacion.write_image(tmpfile.name, width=800, height=600, scale=2)
-                    slide.shapes.add_picture(tmpfile.name, Inches(1), Inches(1.2), width=Inches(8))
-                    os.unlink(tmpfile.name)
+                try:
+                    slide = prs.slides.add_slide(prs.slide_layouts[5])
+                    title_shape = slide.shapes.add_textbox(Inches(0.5), Inches(0.3), Inches(9), Inches(0.8))
+                    title_frame = title_shape.text_frame
+                    title_frame.text = "ANÁLISIS DE FACTURACIÓN"
+                    
+                    with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmpfile:
+                        fig_facturacion.write_image(tmpfile.name, width=800, height=600, scale=2)
+                        slide.shapes.add_picture(tmpfile.name, Inches(1), Inches(1.2), width=Inches(8))
+                        os.unlink(tmpfile.name)
+                        
+                except Exception as e:
+                    st.warning(f"⚠️ Error en slide de facturación: {str(e)}")
             
-            # Slide 5: Análisis de Pareto (si existe)
-            if fig_pareto is not None:
-                slide = prs.slides.add_slide(prs.slide_layouts[5])
-                title_shape = slide.shapes.add_textbox(Inches(0.5), Inches(0.3), Inches(9), Inches(0.8))
-                title_frame = title_shape.text_frame
-                title_frame.text = "ANÁLISIS DE PARETO - DESVIACIONES"
+            # Slide 5: Reprocesos
+            if fig_reprocesos is not None and total_reprocesos > 0:
+                try:
+                    slide = prs.slides.add_slide(prs.slide_layouts[5])
+                    title_shape = slide.shapes.add_textbox(Inches(0.5), Inches(0.3), Inches(9), Inches(0.8))
+                    title_frame = title_shape.text_frame
+                    title_frame.text = "ANÁLISIS DE REPROCESOS"
+                    
+                    with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmpfile:
+                        fig_reprocesos.write_image(tmpfile.name, width=800, height=600, scale=2)
+                        slide.shapes.add_picture(tmpfile.name, Inches(1), Inches(1.2), width=Inches(8))
+                        os.unlink(tmpfile.name)
+                        
+                except Exception as e:
+                    st.warning(f"⚠️ Error en slide de reprocesos: {str(e)}")
+            
+            # Slide 6: Desviaciones de Horas
+            if fig_desviaciones is not None and total_horas_programadas > 0:
+                try:
+                    slide = prs.slides.add_slide(prs.slide_layouts[5])
+                    title_shape = slide.shapes.add_textbox(Inches(0.5), Inches(0.3), Inches(9), Inches(0.8))
+                    title_frame = title_shape.text_frame
+                    title_frame.text = "DESVIACIONES DE HORAS"
+                    
+                    with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmpfile:
+                        fig_desviaciones.write_image(tmpfile.name, width=1000, height=600, scale=2)
+                        slide.shapes.add_picture(tmpfile.name, Inches(0.5), Inches(1.2), width=Inches(9))
+                        os.unlink(tmpfile.name)
+                        
+                except Exception as e:
+                    st.warning(f"⚠️ Error en slide de desviaciones: {str(e)}")
+            
+            # Slide 7: Análisis de Pareto (si existe)
+            if 'fig_pareto' in globals() and fig_pareto is not None:
+                try:
+                    slide = prs.slides.add_slide(prs.slide_layouts[5])
+                    title_shape = slide.shapes.add_textbox(Inches(0.5), Inches(0.3), Inches(9), Inches(0.8))
+                    title_frame = title_shape.text_frame
+                    title_frame.text = "ANÁLISIS DE PARETO"
+                    
+                    with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmpfile:
+                        fig_pareto.write_image(tmpfile.name, width=1000, height=600, scale=2)
+                        slide.shapes.add_picture(tmpfile.name, Inches(0.5), Inches(1.2), width=Inches(9))
+                        os.unlink(tmpfile.name)
+                        
+                except Exception as e:
+                    st.warning(f"⚠️ Error en slide de Pareto: {str(e)}")
+            
+            # Slide 8: Recomendaciones
+            try:
+                slide = prs.slides.add_slide(prs.slide_layouts[1])
+                title = slide.shapes.title
+                content = slide.placeholders[1]
                 
-                with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmpfile:
-                    fig_pareto.write_image(tmpfile.name, width=1000, height=600, scale=2)
-                    slide.shapes.add_picture(tmpfile.name, Inches(0.5), Inches(1.2), width=Inches(9))
-                    os.unlink(tmpfile.name)
+                title.text = "Recomendaciones y Acciones"
+                tf = content.text_frame
+                tf.text = "Acciones Prioritarias:"
+                
+                # Recomendaciones basadas en los datos
+                recomendaciones = []
+                
+                if ots_vencidas > 0:
+                    recomendaciones.append(f"• Atender {ots_vencidas} OTs vencidas urgentemente")
+                
+                if ots_por_vencer > 0:
+                    recomendaciones.append(f"• Revisar {ots_por_vencer} OTs por vencer en próxima semana")
+                
+                if porcentaje_reprocesos > 5:
+                    recomendaciones.append(f"• Investigar causas de reprocesos ({porcentaje_reprocesos:.1f}%)")
+                
+                if porcentaje_facturado < 80:
+                    recomendaciones.append(f"• Mejorar proceso de facturación ({porcentaje_facturado:.1f}%)")
+                
+                if not ots_desviacion_negativa.empty:
+                    recomendaciones.append(f"• Analizar {len(ots_desviacion_negativa)} OTs con desviaciones negativas")
+                
+                # Si no hay recomendaciones específicas, agregar una general
+                if not recomendaciones:
+                    recomendaciones.append("• Mantener el buen desempeño actual")
+                
+                for rec in recomendaciones:
+                    p = tf.add_paragraph()
+                    p.text = rec
+                    
+                p = tf.add_paragraph()
+                p.text = f"\nPróxima revisión: {(datetime.now() + timedelta(days=7)).strftime('%d/%m/%Y')}"
+                
+            except Exception as e:
+                st.warning(f"⚠️ Error en slide de recomendaciones: {str(e)}")
             
             # Guardar presentación
-            filename = f"Reporte_Produccion_Adimatec_{datetime.now().strftime('%Y%m%d_%H%M')}.pptx"
-            prs.save(filename)
-            
-            with open(filename, 'rb') as f:
-                st.download_button(
-                    label="📥 Descargar Reporte PowerPoint",
-                    data=f.read(),
-                    file_name=filename,
-                    mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-                    use_container_width=True
-                )
-            
-            st.success("🎉 ¡Reporte ejecutivo generado exitosamente!")
+            try:
+                filename = f"Reporte_Produccion_Adimatec_{datetime.now().strftime('%Y%m%d_%H%M')}.pptx"
+                prs.save(filename)
+                
+                # Ofrecer descarga
+                with open(filename, 'rb') as f:
+                    st.download_button(
+                        label="📥 Descargar Reporte PowerPoint",
+                        data=f.read(),
+                        file_name=filename,
+                        mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                        use_container_width=True
+                    )
+                
+                st.success("🎉 ¡Reporte ejecutivo generado exitosamente!")
+                st.info("El reporte incluye: Portada, Resumen Ejecutivo, Análisis de OTs Vencidas, Facturación, Reprocesos, Desviaciones de Horas y Plan de Acción.")
+                
+                # Limpiar archivo temporal
+                if os.path.exists(filename):
+                    os.remove(filename)
+                    
+            except Exception as e:
+                st.error(f"❌ Error al guardar el archivo: {str(e)}")
             
     except Exception as e:
-        st.error(f"❌ Error al generar la presentación: {str(e)}")
+        st.error(f"❌ Error crítico al generar la presentación: {str(e)}")
+        st.info("💡 **Solución:** Verifica que todas las librerías estén instaladas correctamente y que haya suficiente espacio en disco.")
 
 def exportar_graficos_imagenes():
     """Exportar gráficos individuales como imágenes PNG"""
