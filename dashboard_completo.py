@@ -62,8 +62,8 @@ def load_data():
         sheet_id = "17eEYewfzoBZXkFWBm5DOJp3IuvHg9WvN"
         
         # URLs CORREGIDAS - formato de exportación directa
-        ot_master_csv = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid=22353124"
-        procesos_csv = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid=1564553976"
+        ot_master_csv = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid=750090467"
+        procesos_csv = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid=509298552"
         
         # Cargar datos
         ot_master = pd.read_csv(ot_master_csv)
